@@ -4,6 +4,6 @@
 </script>
 
 <h1>Welcome to Sigma</h1>
-<p>I will run your life now.</p>
+<p>I am the captain now.</p>
 <Greet />
 <VideoWindow />
