@@ -8,11 +8,27 @@ use async_openai::{
     Client,
 };
 
+use tauri::SystemTray;
+use tauri::{CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem};
+
+
 fn main() {
     dotenv().ok();
 
+    let hide = CustomMenuItem::new("record".to_string(), "Record new journal");
+    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
+    let tray_menu = SystemTrayMenu::new()
+        .add_item(hide)
+        .add_native_item(SystemTrayMenuItem::Separator)
+        .add_item(quit);
+
+    let tray = SystemTray::new().with_menu(tray_menu);
+
+
+
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![get_completion])
+        .system_tray(tray)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
