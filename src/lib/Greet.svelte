@@ -1,16 +1,16 @@
 <script>
     import { invoke } from '@tauri-apps/api/tauri'
 
-    let prompt = ''
+    let name = ''
     let greetMsg = ''
 
-    async function greet() {
-        greetMsg = await invoke('get_completion', { prompt: prompt })
+    async function submitName() {
+        greetMsg = await invoke('get_completion', { name: name })
     }
 </script>
 
 <div>
-    <input id="greet-input" placeholder="Enter a name..." bind:value="{prompt}" />
-    <button on:click="{greet}">Greet</button>
+    <input id="greet-input" placeholder="Enter your name..." bind:value="{name}" />
+    <button on:click="{submitName}">Enter</button>
     <p>{greetMsg}</p>
 </div>

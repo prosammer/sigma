@@ -35,14 +35,14 @@ fn main() {
 
 
 #[tauri::command]
-async fn get_completion(prompt: &str) -> Result<String, String> {
+async fn get_completion(name: &str) -> Result<String, String> {
     println!("get_completion called!");
     let openai_api_key = env::var("OPENAI_API_KEY").map_err(|err| err.to_string())?;
     let client = Client::new();
 
     let request = CreateCompletionRequestArgs::default()
         .model("text-davinci-003")
-        .prompt(prompt)
+        .prompt(format!("Write a joke about the name: {name}"))
         .max_tokens(40_u16)
         .build()
         .map_err(|err| err.to_string())?;
