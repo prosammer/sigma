@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use dotenv::dotenv;
-use std::{env, io};
+use std::env;
 
 use async_openai::{
     types::{CreateCompletionRequestArgs},
@@ -19,13 +19,14 @@ fn main() {
 
 
 #[tauri::command]
-async fn get_completion(name: &str) -> Result<String, String> {
+async fn get_completion(prompt: &str) -> Result<String, String> {
+    println!("get_completion called!");
     let openai_api_key = env::var("OPENAI_API_KEY").map_err(|err| err.to_string())?;
     let client = Client::new();
 
     let request = CreateCompletionRequestArgs::default()
         .model("text-davinci-003")
-        .prompt("Tell me a joke about the universe")
+        .prompt(prompt)
         .max_tokens(40_u16)
         .build()
         .map_err(|err| err.to_string())?;
