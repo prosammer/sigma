@@ -5,7 +5,7 @@
     let greetMsg = ''
 
     async function greet() {
-        greetMsg = await invoke('greet', { name })
+        greetMsg = await invoke('get_completion', { name })
     }
 </script>
 
