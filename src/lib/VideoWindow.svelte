@@ -1,12 +1,9 @@
 <script>
     import { onMount } from "svelte";
-    import {dialog, fs} from "@tauri-apps/api";
 
     let videoElement;
     let stream;
     let recorder;
-    let downloadURL;
-
 
     onMount(async () => {
         const { default: RecordRTC } = await import('recordrtc');
@@ -35,8 +32,19 @@
     async function stopRecording() {
         recorder.stopRecording(async function () {
             let blob = recorder.getBlob();
-            // save the file
+            saveVideo(blob);
         });
+    }
+
+    async function saveVideo(videoBlob) {
+
+        const { dialog, fs } = await import('@tauri-apps/api');
+        const suggestedFileName = "recording.webm"; // Change this to your desired file format
+
+        const filePath = await dialog.save({ defaultPath: suggestedFileName });
+
+        const data = await videoBlob.arrayBuffer();
+        await fs.writeBinaryFile(filePath, new Uint8Array(data));
     }
 </script>
 

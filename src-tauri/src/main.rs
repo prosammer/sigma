@@ -37,7 +37,7 @@ fn main() {
 #[tauri::command]
 async fn get_completion(name: &str) -> Result<String, String> {
     println!("get_completion called!");
-    let openai_api_key = env::var("OPENAI_API_KEY").map_err(|err| err.to_string())?;
+    // let openai_api_key = env::var("OPENAI_API_KEY").map_err(|err| err.to_string())?;
     let client = Client::new();
 
     let request = CreateCompletionRequestArgs::default()
