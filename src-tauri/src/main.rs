@@ -24,14 +24,19 @@ fn main() {
 
     let tray = SystemTray::new().with_menu(tray_menu);
 
-
-
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![get_completion])
         .system_tray(tray)
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, event| match event {
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                api.prevent_exit();
+            }
+            _ => {}
+        });
 }
+
 
 
 #[tauri::command]
@@ -51,4 +56,3 @@ async fn get_completion(name: &str) -> Result<String, String> {
 
     Ok(format!("Hello, {}!", response.choices[0].text))
 }
-

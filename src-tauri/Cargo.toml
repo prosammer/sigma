@@ -21,6 +21,7 @@ tauri = { version = "1.4.0", features = [ "dialog-all", "fs-all", "system-tray"]
 dotenv = "0.15.0"
 async-openai = "0.12.2"
 tokio = "1.29.1"
+chrono = "0.4.26"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

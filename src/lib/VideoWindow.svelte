@@ -6,7 +6,6 @@
     let recorder;
 
     onMount(async () => {
-        const { default: RecordRTC } = await import('recordrtc');
         startCamera();
     });
 
@@ -39,8 +38,9 @@
     async function saveVideo(videoBlob) {
 
         const { dialog, fs } = await import('@tauri-apps/api');
-        const suggestedFileName = "recording.webm"; // Change this to your desired file format
+        const suggestedFileName = "recording.webm";
 
+        // TODO: Make this default to Downloads folder
         const filePath = await dialog.save({ defaultPath: suggestedFileName });
 
         const data = await videoBlob.arrayBuffer();
