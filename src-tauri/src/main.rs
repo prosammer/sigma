@@ -2,6 +2,7 @@
 
 use dotenv::dotenv;
 use std::env;
+use std::{thread, time::Duration};
 
 use async_openai::{
     types::{CreateCompletionRequestArgs},
@@ -9,7 +10,8 @@ use async_openai::{
 };
 
 use tauri::SystemTray;
-use tauri::{CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem};
+use tauri::{CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, Window};
+use chrono::{Local, Timelike};
 
 
 fn main() {
@@ -24,8 +26,16 @@ fn main() {
 
     let tray = SystemTray::new().with_menu(tray_menu);
 
+    // TODO: Add tauri autostart (on login) plugin
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_completion])
+        .on_window_event(|event| match event.event() {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                event.window().hide().unwrap();
+                api.prevent_close();
+            }
+            _ => {}
+        })
+        .invoke_handler(tauri::generate_handler![get_completion, start_3pm_event_loop])
         .system_tray(tray)
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -55,4 +65,25 @@ async fn get_completion(name: &str) -> Result<String, String> {
     let response = client.completions().create(request).await.map_err(|err| err.to_string())?;
 
     Ok(format!("Hello, {}!", response.choices[0].text))
+}
+
+#[tauri::command]
+fn start_3pm_event_loop(window: Window) {
+    println!("start_3pm_event_loop called!");
+    thread::spawn(move || {
+        loop {
+            // Sleep for a minute
+            thread::sleep(Duration::from_secs(10));
+
+            // Check the current time
+            let now = Local::now();
+            if now.hour() == 15 && now.minute() == 0 {
+                // Send the event to the frontend
+                window.emit("3pm-event", None::<()>).unwrap();
+            } else {
+                println!("RUST AINT 3PM SON");
+                window.emit("not-3pm-event", None::<()>).unwrap();
+            }
+        }
+    });
 }

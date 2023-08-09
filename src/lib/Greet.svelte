@@ -1,16 +1,20 @@
 <script>
-    import { invoke } from '@tauri-apps/api/tauri'
+    import { onMount } from "svelte";
 
-    let name = ''
-    let greetMsg = ''
+    let unlisten;
 
-    async function submitName() {
-        greetMsg = await invoke('get_completion', { name: name })
-    }
+    onMount(async () => {
+        const { invoke } = await import('@tauri-apps/api/tauri');
+        const { listen } = await import('@tauri-apps/api/event');
+
+        invoke('start_3pm_event_loop');
+
+        unlisten = await listen('not-3pm-event', (event) => {
+            console.log("It aint 3pm in this bitch!");
+        });
+    });
 </script>
 
 <div>
-    <input id="greet-input" placeholder="Enter your name..." bind:value="{name}" />
-    <button on:click="{submitName}">Enter</button>
-    <p>{greetMsg}</p>
+    <p>Greet!</p>
 </div>
