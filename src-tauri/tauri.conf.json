@@ -42,7 +42,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "com.tauri.dev",
+      "identifier": "com.prosammer.dev",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
@@ -68,6 +68,8 @@
     },
     "windows": [
       {
+        "decorations": false,
+        "transparent": true,
         "fullscreen": false,
         "height": 600,
         "resizable": true,

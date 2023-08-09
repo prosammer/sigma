@@ -26,7 +26,7 @@ fn main() {
     let tray = SystemTray::new().with_menu(tray_menu);
 
     // TODO: Add tauri autostart (on login) plugin
-    let app = tauri::Builder::default()
+    tauri::Builder::default()
         .setup(|app| {
             start_3pm_event_loop(app.handle());
             Ok(())
@@ -78,17 +78,18 @@ fn start_3pm_event_loop(handle: tauri::AppHandle) {
 
             // Check the current time
             let now = Local::now();
-            if now.hour() == 15 && now.minute() == 0 {
-                println!("It is 3pm!");
-            } else {
-                println!("It is not 3pm yet!");
+            // TODO: This is currently set to true for testing purposes
+            let correct_time = true || now.hour() == 15 && now.minute() == 0;
+            if correct_time {
                 let _window = match handle.get_window("recording_window") {
                     Some(window) => window,
                     None => tauri::WindowBuilder::new(
                         &handle,
                         "recording_window",
                         tauri::WindowUrl::App("recording".into())
-                    ).build().expect("Failed to create recording_window")
+                    ).title("Recording")
+                    .build()
+                    .expect("Failed to create recording_window")
                 };
             }
         }
