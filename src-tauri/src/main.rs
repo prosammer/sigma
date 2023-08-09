@@ -9,8 +9,7 @@ use async_openai::{
     Client,
 };
 
-use tauri::SystemTray;
-use tauri::{CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, Window};
+use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager};
 use chrono::{Local, Timelike};
 
 
@@ -27,7 +26,11 @@ fn main() {
     let tray = SystemTray::new().with_menu(tray_menu);
 
     // TODO: Add tauri autostart (on login) plugin
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .setup(|app| {
+            start_3pm_event_loop(app.handle());
+            Ok(())
+        })
         .on_window_event(|event| match event.event() {
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 event.window().hide().unwrap();
@@ -35,7 +38,7 @@ fn main() {
             }
             _ => {}
         })
-        .invoke_handler(tauri::generate_handler![get_completion, start_3pm_event_loop])
+        .invoke_handler(tauri::generate_handler![get_completion])
         .system_tray(tray)
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -67,22 +70,26 @@ async fn get_completion(name: &str) -> Result<String, String> {
     Ok(format!("Hello, {}!", response.choices[0].text))
 }
 
-#[tauri::command]
-fn start_3pm_event_loop(window: Window) {
+fn start_3pm_event_loop(handle: tauri::AppHandle) {
     println!("start_3pm_event_loop called!");
     thread::spawn(move || {
         loop {
-            // Sleep for a minute
             thread::sleep(Duration::from_secs(10));
 
             // Check the current time
             let now = Local::now();
             if now.hour() == 15 && now.minute() == 0 {
-                // Send the event to the frontend
-                window.emit("3pm-event", None::<()>).unwrap();
+                println!("It is 3pm!");
             } else {
-                println!("RUST AINT 3PM SON");
-                window.emit("not-3pm-event", None::<()>).unwrap();
+                println!("It is not 3pm yet!");
+                let _window = match handle.get_window("recording_window") {
+                    Some(window) => window,
+                    None => tauri::WindowBuilder::new(
+                        &handle,
+                        "recording_window",
+                        tauri::WindowUrl::App("recording".into())
+                    ).build().expect("Failed to create recording_window")
+                };
             }
         }
     });

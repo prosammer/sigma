@@ -22,6 +22,9 @@
       },
       "dialog": {
         "all": true
+      },
+      "window": {
+        "create": true
       }
     },
     "bundle": {
