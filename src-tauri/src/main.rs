@@ -17,16 +17,16 @@ use tauri_plugin_positioner::{Position, WindowExt};
 fn main() {
     dotenv().ok();
 
-    let hide = CustomMenuItem::new("record".to_string(), "Record new journal");
+    let record = CustomMenuItem::new("record".to_string(), "Record new journal");
     let quit = CustomMenuItem::new("quit".to_string(), "Quit");
     let tray_menu = SystemTrayMenu::new()
-        .add_item(hide)
+        .add_item(record)
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(quit);
 
     let tray = SystemTray::new().with_menu(tray_menu);
 
-    // TODO: Add tauri autostart (on login) plugin
+    // TODO: Add tauri autostart (on login) plugin (make it optional via settings)
     tauri::Builder::default()
         .setup(|app| {
             start_3pm_event_loop(app.handle());
@@ -42,6 +42,23 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![get_completion])
         .system_tray(tray)
+        .on_system_tray_event(|app, event| {
+            match event {
+                tauri::SystemTrayEvent::MenuItemClick { id, .. } => {
+                    match id.as_str() {
+                        "record" => {
+                            println!("Record system tray item clicked");
+                            let window_exists = app.get_window("recording_window").is_some();
+                            if !window_exists {
+                                let _window = create_and_position_window(&app);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app_handle, event| match event {
@@ -73,16 +90,17 @@ async fn get_completion(name: &str) -> Result<String, String> {
 }
 
 fn start_3pm_event_loop(handle: tauri::AppHandle) {
-    println!("start_3pm_event_loop called!");
+    println!("Started event loop");
 
     thread::spawn(move || {
         loop {
-            thread::sleep(Duration::from_secs(10));
+            thread::sleep(Duration::from_secs(60));
 
             let now = Local::now();
 
-            // TODO: This is for testing purposes only. Normally, we would want to check for 3pm
-            if true || now.hour() == 15 && now.minute() == 0 {
+            // TODO: Allow user to set time
+            if now.hour() == 15 && now.minute() == 0 {
+                println!("Opening recording window");
                 let window_exists = handle.get_window("recording_window").is_some();
                 if !window_exists {
                     let _window = create_and_position_window(&handle);

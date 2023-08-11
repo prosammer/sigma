@@ -1,11 +1,15 @@
 <script>
     import { onMount } from "svelte";
 
+    let videoContainer;
     let videoElement;
     let stream;
     let recorder;
 
     onMount(async () => {
+        videoElement.addEventListener('canplay', () => {
+            videoContainer.style.opacity = '1';
+        });
         await startCamera();
     });
 
@@ -49,7 +53,7 @@
 </script>
 
 <!-- svelte-ignore a11y-media-has-caption -->
-<div class="video-container">
+<div bind:this={videoContainer} class="video-container">
     <video  id="videoElement" bind:this={videoElement} autoplay playsinline></video>
     <div class="controls">
         <button on:click={startRecording}>Start Recording</button>
@@ -59,6 +63,8 @@
 
 <style>
     .video-container {
+        opacity: 0;
+        transition: opacity 0.5s;
         display: flex;
         flex-direction: column;
         align-items: center;
