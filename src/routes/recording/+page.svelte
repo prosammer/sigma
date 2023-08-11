@@ -1,5 +1,6 @@
-<script>
+<script lang="ts">
     import { onMount } from "svelte";
+    import { Button } from "$components/ui/button";
 
     let videoContainer;
     let videoElement;
@@ -53,41 +54,10 @@
 </script>
 
 <!-- svelte-ignore a11y-media-has-caption -->
-<div bind:this={videoContainer} class="video-container">
-    <video  id="videoElement" bind:this={videoElement} autoplay playsinline></video>
-    <div class="controls">
-        <button on:click={startRecording}>Start Recording</button>
-        <button on:click={stopRecording}>Stop and Save</button>
+<div id="videoContainer" bind:this={videoContainer} class="opacity-0 transition-opacity duration-500 flex flex-col items-center justify-center w-full overflow-hidden">
+    <video id="videoElement" bind:this={videoElement} autoplay playsinline class="rounded-full object-cover object-center w-3/5 h-3/5"></video>
+    <div class="flex gap-2.5 mt-2.5">
+        <Button on:click={startRecording}>Start Recording</Button>
+        <Button on:click={stopRecording}>Stop and Save</Button>
     </div>
 </div>
-
-<style>
-    .video-container {
-        opacity: 0;
-        transition: opacity 0.5s;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 80vw;
-        height: 80vw;
-        overflow: hidden;
-    }
-
-    #videoElement {
-        border-radius: 50%;
-        object-fit: cover;
-        width: 60%;
-        height: 60%;
-    }
-
-    .controls {
-        display: flex;
-        gap: 10px;
-        margin-top: 10px;
-    }
-
-    button {
-        padding: 5px 10px;
-    }
-
-</style>
