@@ -6,7 +6,7 @@
     let recorder;
 
     onMount(async () => {
-        startCamera();
+        await startCamera();
     });
 
     async function startCamera() {
@@ -48,6 +48,40 @@
     }
 </script>
 
-<video bind:this={videoElement} width="640" height="480" autoplay playsinline></video>
-<button on:click={startRecording}>Start Recording</button>
-<button on:click={stopRecording}>Stop and Save</button>
+<!-- svelte-ignore a11y-media-has-caption -->
+<div class="video-container">
+    <video  id="videoElement" bind:this={videoElement} autoplay playsinline></video>
+    <div class="controls">
+        <button on:click={startRecording}>Start Recording</button>
+        <button on:click={stopRecording}>Stop and Save</button>
+    </div>
+</div>
+
+<style>
+    .video-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 80vw;
+        height: 80vw;
+        overflow: hidden;
+    }
+
+    #videoElement {
+        border-radius: 50%;
+        object-fit: cover;
+        width: 60%;
+        height: 60%;
+    }
+
+    .controls {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    button {
+        padding: 5px 10px;
+    }
+
+</style>

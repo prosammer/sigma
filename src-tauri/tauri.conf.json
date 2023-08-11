@@ -27,6 +27,7 @@
         "create": true
       }
     },
+    "macOSPrivateApi": true,
     "bundle": {
       "active": true,
       "category": "DeveloperTool",
@@ -68,13 +69,8 @@
     },
     "windows": [
       {
-        "decorations": false,
-        "transparent": true,
         "fullscreen": false,
-        "height": 600,
-        "resizable": true,
-        "title": "Sigma",
-        "width": 800
+        "title": "Sigma"
       }
     ]
   }
