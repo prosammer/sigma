@@ -7,6 +7,8 @@
     let stream;
     let recorder;
 
+    let isRecording = false;
+
     onMount(async () => {
         videoElement.addEventListener('canplay', () => {
             videoContainer.style.opacity = '1';
@@ -25,6 +27,7 @@
     }
 
     async function startRecording() {
+        isRecording = true;
         const { default: RecordRTC } = await import('recordrtc');
 
         recorder = RecordRTC(stream, {
@@ -34,9 +37,10 @@
     }
 
     async function stopRecording() {
+        isRecording = false;
         recorder.stopRecording(async function () {
             let blob = recorder.getBlob();
-            saveVideo(blob);
+            await saveVideo(blob);
         });
     }
 
@@ -54,10 +58,15 @@
 </script>
 
 <!-- svelte-ignore a11y-media-has-caption -->
-<div id="videoContainer" bind:this={videoContainer} class="opacity-0 transition-opacity duration-500 flex flex-col items-center justify-center w-full overflow-hidden">
-    <video id="videoElement" bind:this={videoElement} autoplay playsinline class="rounded-full object-cover object-center w-3/5 h-3/5"></video>
-    <div class="flex gap-2.5 mt-2.5">
-        <Button on:click={startRecording}>Start Recording</Button>
-        <Button on:click={stopRecording}>Stop and Save</Button>
-    </div>
+<div id="videoContainer"  bind:this={videoContainer} class="opacity-0 transition-opacity duration-500 flex flex-col items-center justify-center w-full overflow-hidden">
+    <video id="videoElement" data-tauri-drag-region bind:this={videoElement} autoplay playsinline class="rounded-full object-cover object-center w-3/5 h-3/5"></video>
+    {#if isRecording}
+    <Button class="w-1/8 text-sm" on:click={stopRecording}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fcffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-stop-circle"><circle cx="12" cy="12" r="10"/><rect width="6" height="6" x="9" y="9"/></svg>
+    </Button>
+    {:else}
+    <Button class="w-1/8 text-sm" on:click={startRecording}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-video"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+    </Button>
+    {/if}
 </div>
