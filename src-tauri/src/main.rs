@@ -26,7 +26,6 @@ fn main() {
 
     let tray = SystemTray::new().with_menu(tray_menu);
 
-    // TODO: Add tauri autostart (on login) plugin (make it optional via settings)
     tauri::Builder::default()
         .setup(|app| {
             start_3pm_event_loop(app.handle());
@@ -98,7 +97,6 @@ fn start_3pm_event_loop(handle: tauri::AppHandle) {
 
             let now = Local::now();
 
-            // TODO: Allow user to set time
             if now.hour() == 15 && now.minute() == 0 {
                 println!("Opening recording window");
                 let window_exists = handle.get_window("recording_window").is_some();
@@ -119,7 +117,7 @@ fn create_and_position_window(handle: &tauri::AppHandle) -> tauri::Window {
         .decorations(false)
         .transparent(true)
         .always_on_top(true)
-        .inner_size(400.0, 400.0)
+        .inner_size(192.0,192.0)
         .build()
         .expect("Failed to create recording_window");
 

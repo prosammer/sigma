@@ -68,10 +68,6 @@
       "active": false
     },
     "windows": [
-      {
-        "fullscreen": false,
-        "title": "Sigma"
-      }
     ]
   }
 }
