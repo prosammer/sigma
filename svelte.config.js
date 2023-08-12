@@ -3,7 +3,7 @@ import { vitePreprocess } from '@sveltejs/kit/vite';
 /** @type {import('@sveltejs/kit').Config}*/
 const config = {
 	optimizeDeps: {
-		include: ['video.js', 'videojs-record']
+		include: ['recordrtc']
 	},
 	preprocess: [vitePreprocess({})],
 	kit: {
