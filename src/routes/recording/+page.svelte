@@ -2,6 +2,7 @@
     import { onMount } from "svelte";
     import { Button } from "$components/ui/button";
     import RecordRTC, { Options } from "recordrtc";
+    import { appWindow } from "@tauri-apps/api/window";
 
     let videoContainer: HTMLElement;
     let videoElement: HTMLVideoElement;
@@ -71,6 +72,9 @@
 <!-- svelte-ignore a11y-media-has-caption -->
 <div id="videoContainer" bind:this={videoContainer} class="opacity-0 transition-opacity duration-500 flex flex-col items-center justify-center w-48 m-auto overflow-hidden relative">
     <video id="videoElement" data-tauri-drag-region bind:this={videoElement} autoplay playsinline class="rounded-2xl object-cover object-center"></video>
+    <button class="absolute top-0 left-0 mt-2 ml-2 bg-transparent p-1" on:click={async () => {await appWindow.close()}}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-circle"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+    </button>
     <div class="absolute bottom-0 flex justify-center w-full pb-4">
         {#if isRecording}
             <Button class="w-12 text-sm" on:click={stopRecording}>

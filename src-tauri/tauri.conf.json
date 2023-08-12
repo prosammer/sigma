@@ -7,7 +7,7 @@
     "distDir": "../build"
   },
   "package": {
-    "productName": "tauri-sigma",
+    "productName": "Sigma",
     "version": "0.1.0"
   },
   "tauri": {
