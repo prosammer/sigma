@@ -4,7 +4,7 @@
   import { Input } from "$components/ui/input";
   import { Label } from "$components/ui/label";
   import { Checkbox } from "$components/ui/checkbox";
-  import { Tabs, TabsList, TabsTrigger } from "$components/ui/tabs";
+  // import { Tabs, TabsList, TabsTrigger } from "$components/ui/tabs";
 
   import { enable, disable } from "tauri-plugin-autostart-api";
   import { Store } from "tauri-plugin-store-api";
@@ -34,13 +34,13 @@
 </script>
 <div class="w-full mx-4">
   <div class="flex flex-row">
-    <Tabs value="account" class="w-full flex justify-center mt-5 mb-2">
-    <TabsList>
-      <TabsTrigger value="account">General</TabsTrigger>
-      <TabsTrigger value="gpt">GPT</TabsTrigger>
-      <TabsTrigger value="schedule">Schedule</TabsTrigger>
-    </TabsList>
-  </Tabs>
+<!--    <Tabs value="account" class="w-full flex justify-center mt-5 mb-2">-->
+<!--    <TabsList>-->
+<!--      <TabsTrigger value="account">General</TabsTrigger>-->
+<!--      <TabsTrigger value="gpt">GPT</TabsTrigger>-->
+<!--      <TabsTrigger value="schedule">Schedule</TabsTrigger>-->
+<!--    </TabsList>-->
+<!--  </Tabs>-->
   </div>
   <div>
     <Card class="w-5/6 mx-auto p-5 shadow-lg">
