@@ -41,9 +41,12 @@
 		"class-variance-authority": "^0.7.0",
 		"clsx": "^2.0.0",
 		"lucide-svelte": "^0.265.0",
+		"radix-svelte": "^0.9.0",
 		"recordrtc": "^5.6.2",
 		"tailwind-merge": "^1.14.0",
 		"tailwindcss-animate": "^1.0.6",
+		"tauri-plugin-autostart-api": "github:tauri-apps/tauri-plugin-autostart#v1",
+		"tauri-plugin-store-api": "github:tauri-apps/tauri-plugin-store#v1",
 		"video.js": "^8.3.0",
 		"videojs-record": "^4.6.0",
 		"webrtc-adapter": "^8.2.3"

@@ -12,15 +12,18 @@ use async_openai::{
 use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder};
 use chrono::{Local, Timelike};
 use tauri_plugin_positioner::{Position, WindowExt};
+use tauri_plugin_autostart::MacosLauncher;
 
 
 fn main() {
     dotenv().ok();
 
-    let record = CustomMenuItem::new("record".to_string(), "Record new journal");
+    let record = CustomMenuItem::new("record".to_string(), "Record");
+    let settings = CustomMenuItem::new("settings".to_string(), "Settings");
     let quit = CustomMenuItem::new("quit".to_string(), "Quit");
     let tray_menu = SystemTrayMenu::new()
         .add_item(record)
+        .add_item(settings)
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(quit);
 
@@ -32,13 +35,8 @@ fn main() {
             Ok(())
         })
         .plugin(tauri_plugin_positioner::init())
-        .on_window_event(|event| match event.event() {
-            tauri::WindowEvent::CloseRequested { api, .. } => {
-                event.window().hide().unwrap();
-                api.prevent_close();
-            }
-            _ => {}
-        })
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
+        .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![get_completion])
         .system_tray(tray)
         .on_system_tray_event(|app, event| {
@@ -46,10 +44,15 @@ fn main() {
                 tauri::SystemTrayEvent::MenuItemClick { id, .. } => {
                     match id.as_str() {
                         "record" => {
-                            println!("Record system tray item clicked");
                             let window_exists = app.get_window("recording_window").is_some();
                             if !window_exists {
-                                let _window = create_and_position_window(&app);
+                                let _window = create_recording_window(&app);
+                            }
+                        }
+                        "settings" => {
+                            let window_exists = app.get_window("settings_window").is_some();
+                            if !window_exists {
+                                let _window = create_settings_window(&app);
                             }
                         }
                         _ => {}
@@ -101,14 +104,14 @@ fn start_3pm_event_loop(handle: tauri::AppHandle) {
                 println!("Opening recording window");
                 let window_exists = handle.get_window("recording_window").is_some();
                 if !window_exists {
-                    let _window = create_and_position_window(&handle);
+                    let _window = create_recording_window(&handle);
                 }
             }
         }
     });
 }
 
-fn create_and_position_window(handle: &tauri::AppHandle) -> tauri::Window {
+fn create_recording_window(handle: &tauri::AppHandle) -> tauri::Window {
     let new_window = WindowBuilder::new(
         handle,
         "recording_window",
@@ -122,5 +125,17 @@ fn create_and_position_window(handle: &tauri::AppHandle) -> tauri::Window {
         .expect("Failed to create recording_window");
 
     new_window.move_window(Position::TopCenter).expect("Failed to center window");
+    new_window
+}
+
+fn create_settings_window(handle: &tauri::AppHandle) -> tauri::Window {
+    let new_window = WindowBuilder::new(
+        handle,
+        "settings_window",
+        WindowUrl::App("settings".into())
+    )
+        .build()
+        .expect("Failed to create settings_window");
+
     new_window
 }
