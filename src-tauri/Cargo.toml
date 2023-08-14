@@ -22,6 +22,7 @@ dotenv = "0.15.0"
 async-openai = "0.12.2"
 tokio = "1.29.1"
 chrono = "0.4.26"
+dirs = "5.0"
 tauri-plugin-positioner = "1.0.4"
 tauri-plugin-autostart = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 tauri-plugin-store = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }

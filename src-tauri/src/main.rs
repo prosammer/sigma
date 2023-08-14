@@ -36,6 +36,13 @@ fn main() {
 
     tauri::Builder::default()
         .setup(|app| {
+            let home_dir = dirs::home_dir().expect("Failed to get home directory");
+            let path = home_dir.join("Movies/Video Journals/");
+
+            if !path.exists() {
+                std::fs::create_dir_all(&path).expect("Failed to create directory");
+            }
+
             start_notification_loop(app.handle());
             Ok(())
         })

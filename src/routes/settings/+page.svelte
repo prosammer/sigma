@@ -23,7 +23,7 @@
 
     time = storedTime || "15:00";
     startOnLogin = storedStartOnLogin || false;
-    videoSaveDirectory = storedVideoSaveDirectory || "~/Documents/Video Journals/";
+    videoSaveDirectory = storedVideoSaveDirectory || "~/Movies/Video Journals/";
 
     if (!storedTime) await store.set("time", time);
     if (!storedStartOnLogin) await store.set("startOnLogin", startOnLogin);
@@ -58,26 +58,26 @@
   }
 
 </script>
-<div class="w-full mx-4">
+<div class="w-full mx-4 dark:bg-[#1e1e1e]">
   <div>
-    <Card class="w-5/6 mx-auto p-5 shadow-lg">
-      <h1 class="pb-4">General</h1>
+    <div class="w-5/6 mx-auto p-5 shadow-lg">
+      <h1 class="pb-4 dark:text-white">General</h1>
       <div class="mb-4">
-        <Label for="time" class="block mb-2 px-2">When do you want to schedule a video journal?</Label>
+        <Label for="time" class="block mb-2 px-2 dark:text-white">When do you want to schedule a video journal?</Label>
         <input type="time" id="time" bind:value={time} class="w-full p-2 rounded border"/>
       </div>
 
       <div class="mb-4 flex items-center">
         <Checkbox bind:checked={startOnLogin} id="startOnLogin" />
-        <Label for="startOnLogin" class="ml-2">Start on Login</Label>
+        <Label for="startOnLogin" class="ml-2 dark:text-white">Start on Login</Label>
       </div>
 
-      <h1 class="pb-4">Save</h1>
+      <h1 class="pb-4 dark:text-white">Save</h1>
       <div class="mb-4 flex items-center">
-        <Label for="startOnLogin" class="px-2">Location</Label>
-        <Input type="text" disabled bind:value={videoSaveDirectory}></Input>
+        <Label for="startOnLogin" class="px-2 dark:text-white">Location</Label>
+        <Input type="text" class="dark:text-white" disabled bind:value={videoSaveDirectory}></Input>
         <Button on:click={readFolderContents}>Choose Folder</Button>
       </div>
-    </Card>
+    </div>
   </div>
 </div>
