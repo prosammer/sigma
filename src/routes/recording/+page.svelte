@@ -3,6 +3,7 @@
     import { Button } from "$components/ui/button";
     import RecordRTC, { Options } from "recordrtc";
     import { appWindow } from "@tauri-apps/api/window";
+    import { Store } from "tauri-plugin-store-api";
 
     let videoContainer: HTMLElement;
     let videoElement: HTMLVideoElement;
@@ -57,8 +58,13 @@
 
     async function saveVideo(videoBlob: Blob): Promise<void> {
         const { dialog, fs } = await import('@tauri-apps/api');
-        const suggestedFileName = "recording.webm";
-        const filePath: string | null = await dialog.save({ defaultPath: suggestedFileName });
+        const suggestedDir = await getvideoSaveDirectory() || "~/Documents/Video Journals/";
+
+        const date = new Date().toISOString();
+        const suggestedFileName = date.slice(0, 10) + "_" + date.slice(11, 13) + "_" + date.slice(14, 16) + ".webm";
+
+        console.log(suggestedDir + suggestedFileName)
+        const filePath: string | null = await dialog.save({ defaultPath: suggestedDir + suggestedFileName });
 
         if(filePath) {
             const data: ArrayBuffer = await videoBlob.arrayBuffer();
@@ -66,6 +72,14 @@
         } else {
             console.log("No file path selected");
         }
+    }
+
+    async function getvideoSaveDirectory(): Promise<string | null> {
+        const { Store } = await import("tauri-plugin-store-api");
+
+        const store = new Store(".settings.dat");
+
+        return await store.get("videoSaveDirectory");
     }
 </script>
 
