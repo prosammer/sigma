@@ -1,6 +1,5 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { Button } from "$components/ui/button";
     import RecordRTC, { Options } from "recordrtc";
     import { appWindow } from "@tauri-apps/api/window";
     import { Store } from "tauri-plugin-store-api";
@@ -9,6 +8,7 @@
     let videoElement: HTMLVideoElement;
     let stream: MediaStream;
     let recorder: RecordRTC;
+    let isSystemThemeDark = false;
 
     let isRecording = false;
 
@@ -17,6 +17,9 @@
             videoContainer.style.opacity = '1';
         });
         await startCamera();
+
+        isSystemThemeDark = await appWindow.theme() === "dark";
+
     });
 
     async function startCamera(): Promise<void> {
@@ -61,7 +64,7 @@
         const suggestedDir = await getvideoSaveDirectory() || "~/Documents/Video Journals/";
 
         const date = new Date().toISOString();
-        const suggestedFileName = date.slice(0, 10) + "_" + date.slice(11, 13) + "_" + date.slice(14, 16) + ".webm";
+        const suggestedFileName = date.slice(0, 10) + "_" + date.slice(11, 13) + "_" + date.slice(14, 16) + "_" + date.slice(17, 19) + ".webm";
 
         console.log(suggestedDir + suggestedFileName)
         const filePath: string | null = await dialog.save({ defaultPath: suggestedDir + suggestedFileName });
@@ -75,7 +78,6 @@
     }
 
     async function getvideoSaveDirectory(): Promise<string | null> {
-        const { Store } = await import("tauri-plugin-store-api");
 
         const store = new Store(".settings.dat");
 
@@ -87,17 +89,23 @@
 <div id="videoContainer" bind:this={videoContainer} class="opacity-0 transition-opacity duration-500 flex flex-col items-center justify-center w-48 m-auto relative">
     <video id="videoElement" data-tauri-drag-region bind:this={videoElement} autoplay playsinline class="rounded-2xl object-cover object-center"></video>
     <button class="absolute top-0 left-0 mt-2 ml-2 bg-transparent p-1" on:click={async () => {await appWindow.close()}}>
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x-circle"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke={isSystemThemeDark ? 'white' : 'black'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
     </button>
-    <div class="absolute bottom-0 flex justify-center w-full pb-4">
+    <div class="absolute bottom-0 flex justify-center w-full h-10 items-center">
         {#if isRecording}
-            <Button class="w-12 text-sm" on:click={stopRecording}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fcffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-stop-circle"><circle cx="12" cy="12" r="10"/><rect width="6" height="6" x="9" y="9"/></svg>
-            </Button>
+            <div class="w-12 flex justify-center h-full items-center" on:click={stopRecording}>
+                <svg class="lucide lucide-circle red_svg" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#CD0000" stroke="#CD0000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+            </div>
         {:else}
-            <Button class="w-12 text-sm" on:click={startRecording}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-video"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
-            </Button>
+            <div class="w-12 flex justify-center h-full items-center" on:click={startRecording}>
+                <svg class="lucide lucide-circle" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="#00cd00" stroke="#00cd00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+            </div>
         {/if}
+
     </div>
 </div>
+<style>
+    .red_svg {
+        filter: drop-shadow(0 0 4px #CD0000);
+    }
+</style>
