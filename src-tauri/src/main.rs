@@ -3,6 +3,7 @@
 use dotenv::dotenv;
 use std::env;
 use std::{thread, time::Duration};
+use std::path::PathBuf;
 
 use async_openai::{
     types::{CreateCompletionRequestArgs},
@@ -10,9 +11,13 @@ use async_openai::{
 };
 
 use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder};
-use chrono::{Local, Timelike};
+use chrono::{Local, NaiveTime, Timelike};
 use tauri_plugin_positioner::{Position, WindowExt};
 use tauri_plugin_autostart::MacosLauncher;
+use tauri::Wry;
+use tauri_plugin_store::with_store;
+use tauri_plugin_store::{StoreCollection};
+use serde_json::Value as JsonValue;
 
 
 fn main() {
@@ -31,7 +36,7 @@ fn main() {
 
     tauri::Builder::default()
         .setup(|app| {
-            start_3pm_event_loop(app.handle());
+            start_notification_loop(app.handle());
             Ok(())
         })
         .plugin(tauri_plugin_positioner::init())
@@ -91,16 +96,33 @@ async fn get_completion(name: &str) -> Result<String, String> {
     Ok(format!("Hello, {}!", response.choices[0].text))
 }
 
-fn start_3pm_event_loop(handle: tauri::AppHandle) {
+fn start_notification_loop(handle: tauri::AppHandle) {
     println!("Started event loop");
 
     thread::spawn(move || {
         loop {
-            thread::sleep(Duration::from_secs(60));
+            thread::sleep(Duration::from_secs(59));
 
+            let stores = handle.state::<StoreCollection<Wry>>();
+            let path = PathBuf::from(".settings.dat");
+
+            let handle_clone = handle.clone();
+            let mut time = JsonValue::from("15:00");
+            with_store(handle_clone, stores, path, |store| {
+                if let Some(stored_time) = store.get("time") {
+                    println!("Retrieved time from store: {}", stored_time);
+                    time = stored_time.clone();
+                } else {
+                    println!("No time found in store");
+                }
+                Ok(())
+            }).expect("Failed to interact with the store");
+
+            let parsed_time = NaiveTime::parse_from_str(time.as_str().unwrap(), "%H:%M");
             let now = Local::now();
 
-            if now.hour() == 15 && now.minute() == 0 {
+
+            if now.hour() == parsed_time.unwrap().hour() && now.minute() == parsed_time.unwrap().minute() {
                 println!("Opening recording window");
                 let window_exists = handle.get_window("recording_window").is_some();
                 if !window_exists {
