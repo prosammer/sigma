@@ -13,6 +13,9 @@ module.exports = {
 		},
 		extend: {
 			colors: {
+				"dark-mode-white": '#4D4B52',
+				'dark-mode-button': '#616065',
+				'dark-mode-button-text': '#E7E7E8',
 				border: "hsl(var(--border))",
 				input: "hsl(var(--input))",
 				ring: "hsl(var(--ring))",
