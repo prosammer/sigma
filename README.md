@@ -25,6 +25,11 @@ npm run dev
 npm run dev -- --open
 ```
 
+```bash
+## Running Tauri 
+npm run tauri dev
+```
+
 ## Building
 
 To create a production version of your app:
