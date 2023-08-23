@@ -10,7 +10,7 @@ use async_openai::{
     Client,
 };
 
-use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder};
+use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder, ActivationPolicy};
 use chrono::{Local, NaiveTime, Timelike};
 use tauri_plugin_positioner::{Position, WindowExt};
 use tauri_plugin_autostart::MacosLauncher;
@@ -34,7 +34,7 @@ fn main() {
 
     let tray = SystemTray::new().with_menu(tray_menu);
 
-    tauri::Builder::default()
+    let mut app = tauri::Builder::default()
         .setup(|app| {
             let home_dir = dirs::home_dir().expect("Failed to get home directory");
             let path = home_dir.join("Movies/Video Journals/");
@@ -74,8 +74,11 @@ fn main() {
             }
         })
         .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|_app_handle, event| match event {
+        .expect("error while building tauri application");
+
+    app.set_activation_policy(ActivationPolicy::Accessory);
+
+    app.run(|_app_handle, event| match event {
             tauri::RunEvent::ExitRequested { api, .. } => {
                 api.prevent_exit();
             }
