@@ -3,7 +3,6 @@
 use dotenv::dotenv;
 use std::{thread, time::Duration};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 
 use async_openai::{
     types::{CreateCompletionRequestArgs},
@@ -12,15 +11,15 @@ use async_openai::{
 
 use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder, ActivationPolicy};
 use chrono::{Local, NaiveTime, Timelike};
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use rubato::{SincFixedIn, SincInterpolationParameters, SincInterpolationType, VecResampler, WindowFunction};
 use tauri_plugin_positioner::{Position, WindowExt};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri::Wry;
 use tauri_plugin_store::with_store;
 use tauri_plugin_store::{StoreCollection};
 use serde_json::Value as JsonValue;
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
+use crate::audio_recorder::{start_recording, Transcriber};
+
+mod audio_recorder;
 
 
 fn main() {
@@ -63,7 +62,10 @@ fn main() {
                             // if !window_exists {
                             //     let _window = create_recording_window(&app);
                             // }
-                            start_recording();
+                            let mut transcriber: Transcriber<'_> = Transcriber::new("/Users/samfinton/Documents/Programming/tauri_sigma/src-tauri/src/ggml-base.en.bin");
+                            transcriber.initialize();
+                            start_recording(&mut transcriber);
+
                         }
                         "settings" => {
                             let window_exists = app.get_window("settings_window").is_some();
@@ -174,118 +176,4 @@ fn create_settings_window(handle: &tauri::AppHandle) -> tauri::Window {
         .expect("Failed to create settings_window");
 
     new_window
-}
-
-fn start_recording() {
-    let host = cpal::default_host();
-    let device = host.default_input_device().expect("Failed to get default input device");
-    let config = cpal::StreamConfig {
-        channels: 1,
-        sample_rate: cpal::SampleRate(48000),
-        buffer_size: cpal::BufferSize::Default,
-    };
-    println!("Default input config: {:?}", config);
-
-    let sample_rate = config.sample_rate.0;
-    let channels = config.channels as usize;
-
-    let audio_buffer = Arc::new(Mutex::new(Vec::new()));
-
-    let stream = device.build_input_stream(
-        &config.into(),
-        {
-            let audio_buffer = audio_buffer.clone();
-            move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                let mut buffer = audio_buffer.lock().unwrap();
-                buffer.extend_from_slice(data);
-            }
-        },
-        |err| {
-            eprintln!("An error occurred on stream: {}", err);
-        },
-        None
-    ).expect("Failed to build input stream");
-
-    stream.play().expect("Failed to start stream");
-
-    // For this example, let's record for 5 seconds and then transcribe
-    thread::sleep(Duration::from_secs(25));
-    stream.pause().expect("Failed to pause stream");
-
-    let locked_buffer = audio_buffer.lock().unwrap();
-    transcribe_audio(&locked_buffer, sample_rate, channels);
-}
-
-fn transcribe_audio(audio_buffer: &[f32], sample_rate: u32, channels: usize) {
-    // Load a context and model.
-    let ctx = WhisperContext::new("/Users/samfinton/Documents/Programming/tauri_sigma/src-tauri/src/ggml-base.en.bin")
-        .expect("failed to load model");
-    let mut state = ctx.create_state().expect("failed to create key");
-
-    // Create a params object for running the model.
-    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 0 });
-
-    // Edit params as needed.
-    params.set_n_threads(1);
-    params.set_translate(true);
-    params.set_language(Some("en"));
-    params.set_print_special(false);
-    params.set_print_progress(false);
-    params.set_print_realtime(false);
-    params.set_print_timestamps(false);
-
-    // Convert the audio to floating point samples.
-    if channels != 1 {
-        panic!(">1 channels unsupported");
-    }
-
-    // Check if resampling is needed
-    let mut audio = audio_buffer.to_vec();
-    if sample_rate != 16000 {
-        // Create a resampler
-        let params = SincInterpolationParameters {
-            sinc_len: 256,
-            f_cutoff: 0.95,
-            interpolation: SincInterpolationType::Linear,
-            oversampling_factor: 256,
-            window: WindowFunction::BlackmanHarris2,
-        };
-        let mut resampler = SincFixedIn::<f32>::new(
-            16000 as f64 / sample_rate as f64,
-            2.0,
-            params,
-            audio_buffer.len(),
-            channels,
-        ).unwrap();
-
-        // Process the audio buffer with the resampler
-        let waves_in = vec![audio; channels];
-        let resampled_waves = resampler.process(&waves_in, None).unwrap();
-
-        // Flatten the resampled waves into a single audio buffer
-        audio = resampled_waves.concat();
-    }
-
-    // Run the model.
-    state.full(params, &audio[..]).expect("failed to run model");
-
-    // Iterate through the segments of the transcript.
-    let num_segments = state
-        .full_n_segments()
-        .expect("failed to get number of segments");
-    for i in 0..num_segments {
-        // Get the transcribed text and timestamps for the current segment.
-        let segment = state
-            .full_get_segment_text(i)
-            .expect("failed to get segment");
-        let start_timestamp = state
-            .full_get_segment_t0(i)
-            .expect("failed to get start timestamp");
-        let end_timestamp = state
-            .full_get_segment_t1(i)
-            .expect("failed to get end timestamp");
-
-        // Print the segment to stdout.
-        println!("[{} - {}]: {}", start_timestamp, end_timestamp, segment);
-    }
 }
