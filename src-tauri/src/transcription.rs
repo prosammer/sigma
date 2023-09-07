@@ -16,7 +16,6 @@ use ringbuf::{LocalRb, Rb, SharedRb};
 use std::path::Path;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperToken};
 
-use std::io::Write;
 use std::time::{Duration, Instant};
 use std::{cmp, thread};
 
@@ -27,6 +26,20 @@ const NUM_ITERS_SAVED: usize = 2;
 // TODO: JPB: Add clean way to exit besides ctrl+C (which sometimes doesn't work)
 // TODO: JPB: Make sure this works with other LATENCY_MS, NUM_ITERS, and NUM_ITERS_SAVED
 // TODO: JPB: I think there is an issue where it doesn't compute fast enough and so it loses data
+
+fn clamp(value: f32, min: f32, max: f32) -> f32 {
+    value.min(max).max(min)
+}
+
+fn make_audio_louder(audio_samples: &[f32], gain: f32) -> Vec<f32> {
+    audio_samples
+        .iter()
+        .map(|sample| {
+            let louder_sample = sample * gain;
+            clamp(louder_sample, -1.0, 1.0)
+        })
+        .collect()
+}
 
 pub fn run_transcription() -> Result<(), anyhow::Error> {
     let host = cpal::default_host();
@@ -85,8 +98,6 @@ pub fn run_transcription() -> Result<(), anyhow::Error> {
     );
     println!("Setup input stream");
     let input_stream = input_device.build_input_stream(&config, input_data_fn, err_fn, None)?;
-    //println!("Setup output stream");
-    //let output_stream = output_device.build_output_stream(&config, output_data_fn, err_fn, None)?;
     println!("Successfully built streams.");
 
     // Play the streams.
@@ -95,7 +106,6 @@ pub fn run_transcription() -> Result<(), anyhow::Error> {
         LATENCY_MS
     );
     input_stream.play()?;
-    //output_stream.play()?;
 
     // Remove the initial samples
     consumer.pop_iter().count();
@@ -103,7 +113,6 @@ pub fn run_transcription() -> Result<(), anyhow::Error> {
 
     // Main loop
     // TODO: JPB: Make this it's own function (And the lines above it)
-    let mut num_chars_to_delete = 0;
     let mut loop_num = 0;
     let mut words = "".to_owned();
     loop {
@@ -123,7 +132,7 @@ pub fn run_transcription() -> Result<(), anyhow::Error> {
         // Collect the samples
         let samples: Vec<_> = consumer.pop_iter().collect();
         let samples = whisper_rs::convert_stereo_to_mono_audio(&samples).unwrap();
-        //let samples = make_audio_louder(&samples, 1.0);
+        let samples = make_audio_louder(&samples, 1.0);
         let num_samples_to_delete = iter_num_samples
             .push_overwrite(samples.len())
             .expect("Error num samples to delete is off");
@@ -154,15 +163,6 @@ pub fn run_transcription() -> Result<(), anyhow::Error> {
                     tokens_saved.push(token.id);
                 }
             }
-            num_chars_to_delete = words.chars().count();
-            if loop_num > NUM_ITERS {
-                num_chars_to_delete -= tokens_saved
-                    .iter()
-                    .map(|x| ctx.token_to_str(*x).expect("Error"))
-                    .collect::<String>()
-                    .chars()
-                    .count();
-            }
             iter_tokens.push_overwrite(tokens_saved);
         }
 
@@ -181,22 +181,11 @@ pub fn run_transcription() -> Result<(), anyhow::Error> {
             .full(params, &current_samples)
             .expect("failed to convert samples");
 
-        // Update the words on screen
-        if num_chars_to_delete != 0 {
-            // TODO: JPB: Potentially unneeded if statement
-            print!(
-                "\x1B[{}D{}\x1B[{}D",
-                num_chars_to_delete,
-                " ".repeat(num_chars_to_delete),
-                num_chars_to_delete
-            );
-        }
         let num_tokens = state.full_n_tokens(0)?;
         words = (1..num_tokens - 1)
             .map(|i| state.full_get_token_text(0, i).expect("Error"))
             .collect::<String>();
-        print!("{}", words);
-        std::io::stdout().flush().unwrap();
+        println!("{}", words);
     }
 }
 
