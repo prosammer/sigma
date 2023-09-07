@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod transcription;
+
 use dotenv::dotenv;
-use std::env;
 use std::{thread, time::Duration};
 use std::path::PathBuf;
 
@@ -18,6 +19,7 @@ use tauri::Wry;
 use tauri_plugin_store::with_store;
 use tauri_plugin_store::{StoreCollection};
 use serde_json::Value as JsonValue;
+use crate::transcription::run_transcription;
 
 
 fn main() {
@@ -56,10 +58,11 @@ fn main() {
                 tauri::SystemTrayEvent::MenuItemClick { id, .. } => {
                     match id.as_str() {
                         "record" => {
-                            let window_exists = app.get_window("recording_window").is_some();
-                            if !window_exists {
-                                let _window = create_recording_window(&app);
-                            }
+                            // let window_exists = app.get_window("recording_window").is_some();
+                            // if !window_exists {
+                            //     let _window = create_recording_window(&app);
+                            // }
+                            run_transcription().expect("Transcription could not run");
                         }
                         "settings" => {
                             let window_exists = app.get_window("settings_window").is_some();
@@ -86,17 +89,14 @@ fn main() {
         });
 }
 
-
-
 #[tauri::command]
-async fn get_completion(name: &str) -> Result<String, String> {
+async fn get_completion(user_tts: &str) -> Result<String, String> {
     println!("get_completion called!");
-    // let openai_api_key = env::var("OPENAI_API_KEY").map_err(|err| err.to_string())?;
     let client = Client::new();
 
     let request = CreateCompletionRequestArgs::default()
         .model("text-davinci-003")
-        .prompt(format!("Write a joke about the name: {name}"))
+        .prompt(format!("You are an AI personal routine trainer, please respond to this user (they communicate via speech-to-text): {user_tts}"))
         .max_tokens(40_u16)
         .build()
         .map_err(|err| err.to_string())?;
@@ -107,8 +107,6 @@ async fn get_completion(name: &str) -> Result<String, String> {
 }
 
 fn start_notification_loop(handle: tauri::AppHandle) {
-    println!("Started event loop");
-
     thread::spawn(move || {
         loop {
             thread::sleep(Duration::from_secs(59));
