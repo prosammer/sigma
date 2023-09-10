@@ -18,6 +18,7 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperToken};
 
 use std::time::{Duration, Instant};
 use std::{cmp, thread};
+use std::sync::mpsc;
 
 const LATENCY_MS: f32 = 5000.0;
 const NUM_ITERS: usize = 2;
@@ -41,7 +42,7 @@ fn make_audio_louder(audio_samples: &[f32], gain: f32) -> Vec<f32> {
         .collect()
 }
 
-pub fn run_transcription() -> Result<(), anyhow::Error> {
+pub fn run_transcription(tx: mpsc::Sender<String>) -> Result<(), anyhow::Error> {
     let host = cpal::default_host();
 
     // Default devices.
@@ -182,10 +183,11 @@ pub fn run_transcription() -> Result<(), anyhow::Error> {
             .expect("failed to convert samples");
 
         let num_tokens = state.full_n_tokens(0)?;
+        // TODO: Do I need this?
         words = (1..num_tokens - 1)
             .map(|i| state.full_get_token_text(0, i).expect("Error"))
             .collect::<String>();
-        println!("{}", words);
+        tx.send(words);
     }
 }
 

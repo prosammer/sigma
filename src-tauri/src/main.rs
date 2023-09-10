@@ -5,6 +5,7 @@ mod transcription;
 use dotenv::dotenv;
 use std::{thread, time::Duration};
 use std::path::PathBuf;
+use std::sync::mpsc;
 
 use async_openai::{
     types::{CreateCompletionRequestArgs},
@@ -19,6 +20,7 @@ use tauri::Wry;
 use tauri_plugin_store::with_store;
 use tauri_plugin_store::{StoreCollection};
 use serde_json::Value as JsonValue;
+use tokio::runtime::Runtime;
 use crate::transcription::run_transcription;
 
 
@@ -51,7 +53,7 @@ fn main() {
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![get_completion])
+        // .invoke_handler(tauri::generate_handler![get_completion])
         .system_tray(tray)
         .on_system_tray_event(|app, event| {
             match event {
@@ -62,7 +64,24 @@ fn main() {
                             // if !window_exists {
                             //     let _window = create_recording_window(&app);
                             // }
-                            run_transcription().expect("Transcription could not run");
+                            let (tx, rx) = mpsc::channel();
+                            thread::spawn(move || {
+                                run_transcription(tx).unwrap();
+                            });
+
+
+                            thread::spawn(move || {
+                                loop {
+                                    if let Ok(transcribed_words) = rx.recv() {
+                                        println!("Received: {}", transcribed_words);
+
+                                        let _handle = thread::spawn(|| {
+                                            let runtime = Runtime::new().unwrap();
+                                            runtime.block_on(get_completion(transcribed_words));
+                                        });
+                                    }
+                                }
+                            });
                         }
                         "settings" => {
                             let window_exists = app.get_window("settings_window").is_some();
@@ -89,22 +108,34 @@ fn main() {
         });
 }
 
-#[tauri::command]
-async fn get_completion(user_tts: &str) -> Result<String, String> {
-    println!("get_completion called!");
+async fn get_completion(transcribed_words: String) {
     let client = Client::new();
+    println!("Received: {}", transcribed_words);
 
-    let request = CreateCompletionRequestArgs::default()
+    let request = match CreateCompletionRequestArgs::default()
         .model("text-davinci-003")
-        .prompt(format!("You are an AI personal routine trainer, please respond to this user (they communicate via speech-to-text): {user_tts}"))
+        .prompt(format!("You are an AI personal routine trainer, please respond to this user (they communicate via speech-to-text): {}", transcribed_words))
         .max_tokens(40_u16)
-        .build()
-        .map_err(|err| err.to_string())?;
+        .build() {
+        Ok(req) => req,
+        Err(err) => {
+            println!("Error building request: {}", err);
+            return;
+        }
+    };
 
-    let response = client.completions().create(request).await.map_err(|err| err.to_string())?;
+    let response = match client.completions().create(request).await {
+        Ok(resp) => resp,
+        Err(err) => {
+            println!("Error making completion request: {}", err);
+            return;
+        }
+    };
 
-    Ok(format!("Hello, {}!", response.choices[0].text))
+    println!("GPT Response: {}", response.choices[0].text);
 }
+
+
 
 fn start_notification_loop(handle: tauri::AppHandle) {
     thread::spawn(move || {
