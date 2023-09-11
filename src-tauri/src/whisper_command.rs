@@ -20,9 +20,9 @@ use std::time::{Duration, Instant};
 use std::{cmp, thread};
 use std::sync::mpsc;
 
-const LATENCY_MS: f32 = 5000.0;
-const NUM_ITERS: usize = 2;
-const NUM_ITERS_SAVED: usize = 2;
+const LATENCY_MS: f32 = 7000.0;
+const NUM_ITERS: usize = 1;
+const NUM_ITERS_SAVED: usize = 1;
 
 // TODO: JPB: Add clean way to exit besides ctrl+C (which sometimes doesn't work)
 // TODO: JPB: Make sure this works with other LATENCY_MS, NUM_ITERS, and NUM_ITERS_SAVED

@@ -1,16 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod transcription;
+mod whisper_command;
+mod text_to_speech;
 
 use dotenv::dotenv;
 use std::{thread, time::Duration};
 use std::path::PathBuf;
 use std::sync::mpsc;
-
-use async_openai::{
-    types::{CreateCompletionRequestArgs},
-    Client,
-};
 
 use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder, ActivationPolicy};
 use chrono::{Local, NaiveTime, Timelike};
@@ -21,8 +17,8 @@ use tauri_plugin_store::with_store;
 use tauri_plugin_store::{StoreCollection};
 use serde_json::Value as JsonValue;
 use tokio::runtime::Runtime;
-use crate::transcription::run_transcription;
-
+use crate::text_to_speech::get_completion;
+use crate::whisper_command::run_transcription;
 
 fn main() {
     dotenv().ok();
@@ -73,7 +69,7 @@ fn main() {
                             thread::spawn(move || {
                                 loop {
                                     if let Ok(transcribed_words) = rx.recv() {
-                                        println!("Received: {}", transcribed_words);
+                                        // println!("Received: {}", transcribed_words);
 
                                         let _handle = thread::spawn(|| {
                                             let runtime = Runtime::new().unwrap();
@@ -106,33 +102,6 @@ fn main() {
             }
             _ => {}
         });
-}
-
-async fn get_completion(transcribed_words: String) {
-    let client = Client::new();
-    println!("Received: {}", transcribed_words);
-
-    let request = match CreateCompletionRequestArgs::default()
-        .model("text-davinci-003")
-        .prompt(format!("You are an AI personal routine trainer, please respond to this user (they communicate via speech-to-text): {}", transcribed_words))
-        .max_tokens(40_u16)
-        .build() {
-        Ok(req) => req,
-        Err(err) => {
-            println!("Error building request: {}", err);
-            return;
-        }
-    };
-
-    let response = match client.completions().create(request).await {
-        Ok(resp) => resp,
-        Err(err) => {
-            println!("Error making completion request: {}", err);
-            return;
-        }
-    };
-
-    println!("GPT Response: {}", response.choices[0].text);
 }
 
 
