@@ -2,11 +2,13 @@
 
 mod whisper_command;
 mod text_to_speech;
+mod utils;
 
 use dotenv::dotenv;
 use std::{thread, time::Duration};
 use std::path::PathBuf;
 use std::sync::mpsc;
+use std::thread::sleep;
 
 use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder, ActivationPolicy};
 use chrono::{Local, NaiveTime, Timelike};
@@ -17,6 +19,7 @@ use tauri_plugin_store::with_store;
 use tauri_plugin_store::{StoreCollection};
 use serde_json::Value as JsonValue;
 use tokio::runtime::Runtime;
+use tokio::task;
 use crate::text_to_speech::get_completion;
 use crate::whisper_command::run_transcription;
 
@@ -60,23 +63,24 @@ fn main() {
                             // if !window_exists {
                             //     let _window = create_recording_window(&app);
                             // }
-                            let (tx, rx) = mpsc::channel();
+                            let (transcription_tx, transcription_rx) = mpsc::channel();
+
                             thread::spawn(move || {
-                                run_transcription(tx).unwrap();
+                                run_transcription(transcription_tx).unwrap();
                             });
 
-
                             thread::spawn(move || {
-                                loop {
-                                    if let Ok(transcribed_words) = rx.recv() {
-                                        // println!("Received: {}", transcribed_words);
+                                let runtime = Runtime::new().unwrap();
 
-                                        let _handle = thread::spawn(|| {
-                                            let runtime = Runtime::new().unwrap();
-                                            runtime.block_on(get_completion(transcribed_words));
-                                        });
+                                runtime.block_on(async {
+                                    loop {
+                                        sleep(Duration::from_millis(200));
+                                        if let Ok(transcribed_words) = transcription_rx.recv() {
+                                            // Spawn an async task to handle the `get_completion` function.
+                                            task::spawn(get_completion(transcribed_words));
+                                        }
                                     }
-                                }
+                                });
                             });
                         }
                         "settings" => {
