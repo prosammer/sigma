@@ -19,8 +19,7 @@ use tauri_plugin_store::with_store;
 use tauri_plugin_store::{StoreCollection};
 use serde_json::Value as JsonValue;
 use tokio::runtime::Runtime;
-use tokio::task;
-use crate::text_to_speech::get_completion;
+use crate::text_to_speech::{get_completion, play_audio, text_to_speech};
 use crate::whisper_command::run_transcription;
 
 fn main() {
@@ -64,9 +63,10 @@ fn main() {
                             //     let _window = create_recording_window(&app);
                             // }
                             let (transcription_tx, transcription_rx) = mpsc::channel();
+                            let (talking_tx, talking_rx) = mpsc::channel();
 
                             thread::spawn(move || {
-                                run_transcription(transcription_tx).unwrap();
+                                run_transcription(transcription_tx, talking_rx).unwrap();
                             });
 
                             thread::spawn(move || {
@@ -76,8 +76,12 @@ fn main() {
                                     loop {
                                         sleep(Duration::from_millis(200));
                                         if let Ok(transcribed_words) = transcription_rx.recv() {
-                                            // Spawn an async task to handle the `get_completion` function.
-                                            task::spawn(get_completion(transcribed_words));
+                                            println!("Transcribed words: {}", transcribed_words);
+                                            let gpt_response = get_completion(transcribed_words).await.expect("Unable to get completion");
+                                            println!("GPT Response: {}", gpt_response);
+                                            let speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",gpt_response).await.expect("Unable to run TTS");
+                                            play_audio(speech_audio);
+                                            talking_tx.send(false);
                                         }
                                     }
                                 });

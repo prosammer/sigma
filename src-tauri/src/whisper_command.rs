@@ -29,7 +29,7 @@ const LATENCY_MS: f32 = 7000.0;
 // TODO: JPB: I think there is an issue where it doesn't compute fast enough and so it loses data
 
 
-pub fn run_transcription(transcription_tx: mpsc::Sender<String>) -> Result<(), anyhow::Error> {
+pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mpsc::Receiver<bool>) -> Result<(), anyhow::Error> {
     let host = cpal::default_host();
 
     // Default devices.
@@ -87,9 +87,9 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>) -> Result<(), a
     input_stream.play()?;
 
     // Remove the initial samples
-    consumer.pop_iter().count();
+    consumer.clear();
 
-    sleep(Duration::from_millis(1000));
+    sleep(Duration::from_millis(200));
 
     loop {
 
@@ -97,14 +97,10 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>) -> Result<(), a
         let samples = whisper_rs::convert_stereo_to_mono_audio(&samples).unwrap();
         let samples = make_audio_louder(&samples, 1.0);
 
-        // let first_two_seconds = ((config.sample_rate.0 * 2000) / 1000) as usize;
-        // let first_n_samples = &samples[0..2000];
-
         // TODO: The sampling_freq is divided by two because of stereo, need to check if this is correct for the vad
         if utils::vad_simple(&samples, sampling_freq as usize, 1000) {
             println!("Speech detected! Processing...");
             let params = gen_whisper_params();
-            // params.set_tokens(&tokens);
 
             state
                 .full(params, &*samples)
@@ -115,10 +111,17 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>) -> Result<(), a
                 .map(|i| state.full_get_token_text(0, i).expect("Error"))
                 .collect::<String>();
             transcription_tx.send(words);
+            // Wait for the computer to finish talking before proceeding
+            println!("Waiting to recieve signal");
+            talking_rx.recv();
+            consumer.clear();
+            println!("Recieved signal");
+
+        } else {
+            // Else, there is just silence. The samples should be deleted
+            println!("Silence Detected!");
+            sleep(Duration::from_secs(3));
         }
-        // Else, there is just silence. The samples should be deleted
-        println!("Silence Detected!");
-        sleep(Duration::from_secs(3));
     }
 }
 
