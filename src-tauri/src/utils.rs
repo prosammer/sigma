@@ -44,6 +44,7 @@ pub(crate) fn vad_simple(
         return false;
     }
 
+    // TODO: Re-enable the highpass filter
     // if freq_thold > 0.0 {
     //     high_pass_filter(&mut pcmf32, freq_thold, sample_rate as f32);
     // }
