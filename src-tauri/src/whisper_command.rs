@@ -24,11 +24,6 @@ use utils::make_audio_louder;
 
 const LATENCY_MS: f32 = 7000.0;
 
-// TODO: JPB: Add clean way to exit besides ctrl+C (which sometimes doesn't work)
-// TODO: JPB: Make sure this works with other LATENCY_MS, NUM_ITERS, and NUM_ITERS_SAVED
-// TODO: JPB: I think there is an issue where it doesn't compute fast enough and so it loses data
-
-
 pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mpsc::Receiver<bool>) -> Result<(), anyhow::Error> {
     let host = cpal::default_host();
 
@@ -43,7 +38,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
     let latency_frames = (LATENCY_MS / 1_000.0) * config.sample_rate.0 as f32;
     let latency_samples = latency_frames as usize * config.channels as usize;
     println!("{}", latency_samples);
-    let sampling_freq = config.sample_rate.0 as f32 / 2.0; // TODO: JPB: Divide by 2 because of stereo to mono
+    let sampling_freq = config.sample_rate.0 as f32 / 2.0; // TODO: Divide by 2 because of stereo to mono
 
     // The buffer to share samples
     let ring = SharedRb::new(latency_samples * 2);
@@ -89,16 +84,17 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
     // Remove the initial samples
     consumer.clear();
 
-    sleep(Duration::from_millis(200));
+    sleep(Duration::from_millis(3000));
 
     loop {
 
         let samples: Vec<_> = consumer.pop_iter().collect();
         let samples = whisper_rs::convert_stereo_to_mono_audio(&samples).unwrap();
-        let samples = make_audio_louder(&samples, 1.0);
+        let mut samples = make_audio_louder(&samples, 1.0);
 
-        // TODO: The sampling_freq is divided by two because of stereo, need to check if this is correct for the vad
-        if utils::vad_simple(&samples, sampling_freq as usize, 1000) {
+        // TODO: The sampling_freq is divided by two for stereo, need to check if this is correct for the vad
+        if utils::vad_simple(&mut samples, sampling_freq as usize, 1000) {
+            // the last 1000ms of audio was silent and there was talking before it
             println!("Speech detected! Processing...");
             let params = gen_whisper_params();
 
@@ -110,13 +106,16 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
             let words = (1..num_tokens - 1)
                 .map(|i| state.full_get_token_text(0, i).expect("Error"))
                 .collect::<String>();
+
             transcription_tx.send(words);
+
             // Wait for the computer to finish talking before proceeding
-            println!("Waiting to recieve signal");
+            println!("Waiting to receive signal");
+            input_stream.pause();
             talking_rx.recv();
             consumer.clear();
-            println!("Recieved signal");
-
+            input_stream.play();
+            println!("Received signal");
         } else {
             // Else, there is just silence. The samples should be deleted
             println!("Silence Detected!");
