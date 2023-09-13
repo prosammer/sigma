@@ -28,7 +28,7 @@ fn high_pass_filter(data: &mut Vec<f32>, cutoff: f32, sample_rate: f32) {
 }
 
 pub(crate) fn vad_simple(
-    pcmf32: &Vec<f32>,
+    mut pcmf32: &mut Vec<f32>,
     sample_rate: usize,
     last_ms: usize
 ) -> bool {
@@ -44,10 +44,9 @@ pub(crate) fn vad_simple(
         return false;
     }
 
-    // TODO: Re-enable the highpass filter
-    // if freq_thold > 0.0 {
-    //     high_pass_filter(&mut pcmf32, freq_thold, sample_rate as f32);
-    // }
+    if freq_thold > 0.0 {
+        high_pass_filter(&mut pcmf32, freq_thold, sample_rate as f32);
+    }
 
     let mut energy_all = 0.0f32;
     let mut energy_last = 0.0f32;
