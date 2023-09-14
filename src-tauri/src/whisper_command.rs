@@ -108,14 +108,14 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
                 .map(|i| state.full_get_token_text(0, i).expect("Error"))
                 .collect::<String>();
 
-            transcription_tx.send(words);
+            let _send = transcription_tx.send(words);
 
             // Wait for the computer to finish talking before proceeding
             println!("Waiting to receive signal");
-            input_stream.pause();
-            talking_rx.recv();
+            input_stream.pause().expect("Failed to pause input stream");
+            talking_rx.recv().expect("Failed to receive talking_rx signal");
             consumer.clear();
-            input_stream.play();
+            input_stream.play().expect("Failed to play input stream");
             println!("Received signal");
         } else {
             // Else, there is just silence. The samples should be deleted
