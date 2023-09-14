@@ -1,14 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod whisper_command;
+mod text_to_speech;
+mod utils;
+
 use dotenv::dotenv;
-use std::env;
 use std::{thread, time::Duration};
 use std::path::PathBuf;
-
-use async_openai::{
-    types::{CreateCompletionRequestArgs},
-    Client,
-};
+use std::sync::mpsc;
+use std::thread::sleep;
 
 use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder, ActivationPolicy};
 use chrono::{Local, NaiveTime, Timelike};
@@ -18,7 +18,9 @@ use tauri::Wry;
 use tauri_plugin_store::with_store;
 use tauri_plugin_store::{StoreCollection};
 use serde_json::Value as JsonValue;
-
+use tokio::runtime::Runtime;
+use crate::text_to_speech::{get_completion, play_audio, text_to_speech};
+use crate::whisper_command::run_transcription;
 
 fn main() {
     dotenv().ok();
@@ -49,24 +51,48 @@ fn main() {
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
         .plugin(tauri_plugin_store::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![get_completion])
+        // .invoke_handler(tauri::generate_handler![get_completion])
         .system_tray(tray)
         .on_system_tray_event(|app, event| {
             match event {
                 tauri::SystemTrayEvent::MenuItemClick { id, .. } => {
                     match id.as_str() {
                         "record" => {
-                            let window_exists = app.get_window("recording_window").is_some();
-                            if !window_exists {
-                                let _window = create_recording_window(&app);
-                            }
+                            // let window_exists = app.get_window("recording_window").is_some();
+                            // if !window_exists {
+                            //     let _window = create_recording_window(&app);
+                            // }
+                            let (transcription_tx, transcription_rx) = mpsc::channel();
+                            let (talking_tx, talking_rx) = mpsc::channel();
+
+                            thread::spawn(move || {
+                                run_transcription(transcription_tx, talking_rx).unwrap();
+                            });
+
+                            thread::spawn(move || {
+                                let runtime = Runtime::new().unwrap();
+
+                                runtime.block_on(async {
+                                    loop {
+                                        sleep(Duration::from_millis(200));
+                                        if let Ok(transcribed_words) = transcription_rx.recv() {
+                                            println!("Transcribed words: {}", transcribed_words);
+                                            let gpt_response = get_completion(transcribed_words).await.expect("Unable to get completion");
+                                            println!("GPT Response: {}", gpt_response);
+                                            let speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",gpt_response).await.expect("Unable to run TTS");
+                                            play_audio(speech_audio);
+                                            talking_tx.send(false);
+                                        }
+                                    }
+                                });
+                            });
                         }
                         "settings" => {
                             let window_exists = app.get_window("settings_window").is_some();
                             if !window_exists {
                                 let _window = create_settings_window(&app);
                             }
-                        }
+                        }e
                         _ => {}
                     }
                 }
@@ -88,27 +114,7 @@ fn main() {
 
 
 
-#[tauri::command]
-async fn get_completion(name: &str) -> Result<String, String> {
-    println!("get_completion called!");
-    // let openai_api_key = env::var("OPENAI_API_KEY").map_err(|err| err.to_string())?;
-    let client = Client::new();
-
-    let request = CreateCompletionRequestArgs::default()
-        .model("text-davinci-003")
-        .prompt(format!("Write a joke about the name: {name}"))
-        .max_tokens(40_u16)
-        .build()
-        .map_err(|err| err.to_string())?;
-
-    let response = client.completions().create(request).await.map_err(|err| err.to_string())?;
-
-    Ok(format!("Hello, {}!", response.choices[0].text))
-}
-
 fn start_notification_loop(handle: tauri::AppHandle) {
-    println!("Started event loop");
-
     thread::spawn(move || {
         loop {
             thread::sleep(Duration::from_secs(59));
