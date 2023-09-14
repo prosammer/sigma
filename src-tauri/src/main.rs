@@ -92,7 +92,7 @@ fn main() {
                             if !window_exists {
                                 let _window = create_settings_window(&app);
                             }
-                        }
+                        }e
                         _ => {}
                     }
                 }
