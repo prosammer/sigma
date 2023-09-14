@@ -75,3 +75,15 @@ pub(crate) fn vad_simple(
 
     true
 }
+
+pub fn convert_stereo_to_mono_audio(samples: Vec<&mut f32>) -> Result<Vec<f32>, &'static str> {
+    if samples.len() & 1 != 0 {
+        return Err("The stereo audio vector has an odd number of samples. \
+            This means a half-sample is missing somewhere");
+    }
+
+    Ok(samples
+        .chunks_exact(2)
+        .map(|x| (*x[0] + *x[1]) / 2.0)
+        .collect())
+}

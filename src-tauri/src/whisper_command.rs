@@ -21,6 +21,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use crate::utils;
 use utils::make_audio_louder;
+use crate::utils::convert_stereo_to_mono_audio;
 
 const LATENCY_MS: f32 = 7000.0;
 
@@ -88,8 +89,8 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
 
     loop {
 
-        let samples: Vec<_> = consumer.pop_iter().collect();
-        let samples = whisper_rs::convert_stereo_to_mono_audio(&samples).unwrap();
+        let samples: Vec<&mut f32> = consumer.iter_mut().collect();
+        let samples = convert_stereo_to_mono_audio(samples).unwrap();
         let mut samples = make_audio_louder(&samples, 1.0);
 
         // TODO: The sampling_freq is divided by two for stereo, need to check if this is correct for the vad
@@ -135,13 +136,11 @@ fn gen_whisper_params<'a>() -> FullParams<'a, 'a> {
     params.set_token_timestamps(true);
     params.set_duration_ms(LATENCY_MS as i32);
     params.set_no_context(true);
-    //params.set_n_threads(4);
+    params.set_n_threads(8);
 
     //params.set_no_speech_thold(0.3);
     //params.set_split_on_word(true);
 
-    // This impacts token times, don't use
-    //params.set_single_segment(true);
 
     params
 }
