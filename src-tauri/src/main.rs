@@ -17,6 +17,7 @@ use tauri::Wry;
 use tauri_plugin_store::with_store;
 use tauri_plugin_store::{StoreCollection};
 use serde_json::Value as JsonValue;
+use tauri_plugin_positioner::{Position, WindowExt};
 use tokio::runtime::Runtime;
 use crate::text_to_speech::{get_completion, play_audio, text_to_speech};
 use crate::whisper_command::run_transcription;
@@ -50,7 +51,10 @@ fn main() {
             if is_production {
                 start_notification_loop(app.handle());
             } else {
-                start_voice_chat();
+                let window_exists = app.handle().get_window("transcription_window").is_some();
+                if !window_exists {
+                    let _window = create_transcription_window(&app.handle());
+                }
             }
 
             Ok(())
@@ -58,19 +62,19 @@ fn main() {
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--flag1", "--flag2"])))
         .plugin(tauri_plugin_store::Builder::default().build())
-        // .invoke_handler(tauri::generate_handler![get_completion])
+        .invoke_handler(tauri::generate_handler![start_voice_chat])
         .system_tray(tray)
-        .on_system_tray_event(|app, event| {
+        .on_system_tray_event(|app_handle, event| {
             match event {
                 tauri::SystemTrayEvent::MenuItemClick { id, .. } => {
                     match id.as_str() {
                         "talk" => {
-                            start_voice_chat();
+                            create_transcription_window(app_handle);
                         }
                         "settings" => {
-                            let window_exists = app.get_window("settings_window").is_some();
+                            let window_exists = app_handle.get_window("settings_window").is_some();
                             if !window_exists {
-                                let _window = create_settings_window(&app);
+                                let _window = create_settings_window(&app_handle);
                             }
                         }
                         _ => {}
@@ -92,8 +96,14 @@ fn main() {
         });
 }
 
+#[tauri::command]
+async fn start_voice_chat() {
+    let initial_speech = "Hello, I'm your journal. I'm here to listen to you and help you reflect on your day.".to_string();
 
-fn start_voice_chat() {
+    let initial_speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",initial_speech).await.expect("Unable to run TTS");
+
+    play_audio(initial_speech_audio);
+
     let (transcription_tx, transcription_rx) = mpsc::channel();
     let (talking_tx, talking_rx) = mpsc::channel();
 
@@ -112,7 +122,7 @@ fn start_voice_chat() {
                     println!("GPT Response: {}", gpt_response);
                     let speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",gpt_response).await.expect("Unable to run TTS");
                     play_audio(speech_audio);
-                    talking_tx.send(false);
+                    let _send = talking_tx.send(false);
                 }
             }
         });
@@ -145,10 +155,34 @@ fn start_notification_loop(handle: tauri::AppHandle) {
 
             if now.hour() == parsed_time.unwrap().hour() && now.minute() == parsed_time.unwrap().minute() {
                 println!("Chosen time reached! Starting voice chat");
-                start_voice_chat();
+                create_transcription_window(&handle);
             }
         }
     });
+}
+
+fn create_transcription_window(handle: &tauri::AppHandle) -> tauri::Window {
+
+    let window_exists = handle.get_window("transcription_window").is_some();
+
+    if window_exists {
+        return handle.get_window("transcription_window").unwrap();
+    }
+
+    let new_window = WindowBuilder::new(
+        handle,
+        "transcription_window",
+        WindowUrl::App("transcription".into())
+    )
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .inner_size(192.0,192.0)
+        .build()
+        .expect("Failed to create transcription_window");
+
+    new_window.move_window(Position::TopCenter).expect("Failed to center window");
+    new_window
 }
 
 fn create_settings_window(handle: &tauri::AppHandle) -> tauri::Window {
