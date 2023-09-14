@@ -26,7 +26,15 @@ dirs = "5.0"
 tauri-plugin-positioner = "1.0.4"
 tauri-plugin-autostart = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
 tauri-plugin-store = { git = "https://github.com/tauri-apps/plugins-workspace", branch = "v1" }
-
+whisper-rs = "0.8.0"
+cpal = "0.15.2"
+anyhow = "1.0.75"
+ringbuf = "0.3.3"
+async-stream = "0.3.5"
+futures = "0.3.28"
+reqwest = "0.11.20"
+rodio = "0.17.1"
+bytes = "1.5.0"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
