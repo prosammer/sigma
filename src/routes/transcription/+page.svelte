@@ -5,6 +5,6 @@
 
 </script>
 
-<div class="rounded-2xl bg-[#1D1C23] bg-opacity-10">
+<div class="rounded-2xl bg-[#1D1C23] bg-opacity-95">
   <h1 class="text-white py-10">Transcription Window!</h1>
 </div>

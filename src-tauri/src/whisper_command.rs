@@ -19,9 +19,9 @@ use whisper_rs::{FullParams, SamplingStrategy, WhisperContext};
 use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
-use crate::utils;
-use utils::make_audio_louder;
-use crate::utils::convert_stereo_to_mono_audio;
+use crate::audio_utils;
+use audio_utils::make_audio_louder;
+use crate::audio_utils::convert_stereo_to_mono_audio;
 
 const LATENCY_MS: f32 = 7000.0;
 
@@ -85,7 +85,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
     // Remove the initial samples
     consumer.clear();
 
-    sleep(Duration::from_millis(3000));
+    sleep(Duration::from_millis(2000));
 
     loop {
 
@@ -94,7 +94,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
         let mut samples = make_audio_louder(&samples, 1.0);
 
         // TODO: The sampling_freq is divided by two for stereo, need to check if this is correct for the vad
-        if utils::vad_simple(&mut samples, sampling_freq as usize, 1000) {
+        if audio_utils::vad_simple(&mut samples, sampling_freq as usize, 1000) {
             // the last 1000ms of audio was silent and there was talking before it
             println!("Speech detected! Processing...");
             let params = gen_whisper_params();
@@ -120,7 +120,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
         } else {
             // Else, there is just silence. The samples should be deleted
             println!("Silence Detected!");
-            sleep(Duration::from_secs(3));
+            sleep(Duration::from_secs(1));
         }
     }
 }
