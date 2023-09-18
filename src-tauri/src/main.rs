@@ -2,24 +2,21 @@
 
 mod whisper_command;
 mod text_to_speech;
-mod utils;
+mod stores;
+mod audio_utils;
 
 use dotenv::dotenv;
 use std::{env, thread, time::Duration};
-use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread::sleep;
 
-use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder, ActivationPolicy};
+use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder, ActivationPolicy, AppHandle};
 use chrono::{Local, NaiveTime, Timelike};
 use tauri_plugin_autostart::MacosLauncher;
-use tauri::Wry;
-use tauri_plugin_store::with_store;
-use tauri_plugin_store::{StoreCollection};
-use serde_json::Value as JsonValue;
 use tauri_plugin_positioner::{Position, WindowExt};
 use tokio::runtime::Runtime;
 use crate::text_to_speech::{get_completion, play_audio, text_to_speech};
+use crate::stores::get_from_store;
 use crate::whisper_command::run_transcription;
 
 fn main() {
@@ -38,16 +35,9 @@ fn main() {
 
     let mut app = tauri::Builder::default()
         .setup(|app| {
+            // If we're in production, start waiting for the right time to start the voice chat.
+            // In dev, start it right away.
             let is_production = env::var("IS_PRODUCTION").map_or(false, |v| v == "true");
-            let home_dir = dirs::home_dir().expect("Failed to get home directory");
-            let path = home_dir.join("Movies/Video Journals/");
-
-            if !path.exists() {
-                std::fs::create_dir_all(&path).expect("Failed to create directory");
-            }
-
-
-            // If we're in production, start waiting for the right time to start the voice chat. In dev, start it right away.
             if is_production {
                 start_notification_loop(app.handle());
             } else {
@@ -97,11 +87,13 @@ fn main() {
 }
 
 #[tauri::command]
-async fn start_voice_chat() {
-    let initial_speech = "Hello, I'm your journal. I'm here to listen to you and help you reflect on your day.".to_string();
-
+async fn start_voice_chat(handle: AppHandle) {
+    let user_first_name = get_from_store(handle,  "userFirstName");
+    let initial_speech = match user_first_name {
+        Some(s) => format!("Good morning {}!", s),
+        None => "Good morning!".to_string(),
+    };
     let initial_speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",initial_speech).await.expect("Unable to run TTS");
-
     play_audio(initial_speech_audio);
 
     let (transcription_tx, transcription_rx) = mpsc::channel();
@@ -129,29 +121,14 @@ async fn start_voice_chat() {
     });
 }
 
-fn start_notification_loop(handle: tauri::AppHandle) {
+fn start_notification_loop(handle: AppHandle) {
     thread::spawn(move || {
         loop {
             sleep(Duration::from_secs(59));
 
-            let stores = handle.state::<StoreCollection<Wry>>();
-            let path = PathBuf::from(".settings.dat");
-
-            let handle_clone = handle.clone();
-            let mut time = JsonValue::from("15:00");
-            with_store(handle_clone, stores, path, |store| {
-                if let Some(stored_time) = store.get("time") {
-                    println!("Retrieved time from store: {}", stored_time);
-                    time = stored_time.clone();
-                } else {
-                    println!("No time found in store");
-                }
-                Ok(())
-            }).expect("Failed to interact with the store");
-
-            let parsed_time = NaiveTime::parse_from_str(time.as_str().unwrap(), "%H:%M");
+            let time = get_from_store(handle.clone(), "time").unwrap_or("15:00".to_string());
+            let parsed_time = NaiveTime::parse_from_str(&time, "%H:%M");
             let now = Local::now();
-
 
             if now.hour() == parsed_time.unwrap().hour() && now.minute() == parsed_time.unwrap().minute() {
                 println!("Chosen time reached! Starting voice chat");
@@ -161,7 +138,7 @@ fn start_notification_loop(handle: tauri::AppHandle) {
     });
 }
 
-fn create_transcription_window(handle: &tauri::AppHandle) -> tauri::Window {
+fn create_transcription_window(handle: &AppHandle) -> tauri::Window {
 
     let window_exists = handle.get_window("transcription_window").is_some();
 
@@ -185,7 +162,7 @@ fn create_transcription_window(handle: &tauri::AppHandle) -> tauri::Window {
     new_window
 }
 
-fn create_settings_window(handle: &tauri::AppHandle) -> tauri::Window {
+fn create_settings_window(handle: &AppHandle) -> tauri::Window {
     let new_window = WindowBuilder::new(
         handle,
         "settings_window",
