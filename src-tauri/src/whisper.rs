@@ -20,8 +20,7 @@ use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
 use crate::audio_utils;
-use audio_utils::make_audio_louder;
-use crate::audio_utils::convert_stereo_to_mono_audio;
+use crate::audio_utils::{play_audio_f32_vec, resample_audio};
 
 const LATENCY_MS: f32 = 7000.0;
 
@@ -89,31 +88,26 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
 
     loop {
 
-        let samples: Vec<&mut f32> = consumer.iter_mut().collect();
-        let samples = convert_stereo_to_mono_audio(samples).unwrap();
-        let mut samples = make_audio_louder(&samples, 1.0);
+        let mut samples: Vec<f32> = consumer.iter().map(|x| *x).collect();
+        // let samples = convert_stereo_to_mono_audio(samples).unwrap();
+        // let mut samples = make_audio_louder(samples, 1.0);
 
-        // TODO: The sampling_freq is divided by two for stereo, need to check if this is correct for the vad
         if audio_utils::vad_simple(&mut samples, sampling_freq as usize, 1000) {
             // the last 1000ms of audio was silent and there was talking before it
             println!("Speech detected! Processing...");
-            let params = gen_whisper_params();
 
-            state
-                .full(params, &*samples)
-                .expect("failed to convert samples");
+            //Convert the samples from 48000 to 16000 for whisper
+            // let resampled = resample_audio(samples, 48000, 16000).unwrap();
 
-            let num_tokens = state.full_n_tokens(0)?;
-            let words = (1..num_tokens - 1)
-                .map(|i| state.full_get_token_text(0, i).expect("Error"))
-                .collect::<String>();
+            // let transcript = get_transcript(&resampled, &mut state);
 
-            let _send = transcription_tx.send(words);
+            // let _send = transcription_tx.send(words);
 
             // Wait for the computer to finish talking before proceeding
-            println!("Waiting to receive signal");
+            // println!("Waiting to receive signal");
             input_stream.pause().expect("Failed to pause input stream");
-            talking_rx.recv().expect("Failed to receive talking_rx signal");
+            play_audio_f32_vec(samples, 48000);
+            // talking_rx.recv().expect("Failed to receive talking_rx signal");
             consumer.clear();
             input_stream.play().expect("Failed to play input stream");
             println!("Received signal");
@@ -125,7 +119,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
     }
 }
 
-fn gen_whisper_params<'a>() -> FullParams<'a, 'a> {
+fn get_transcript(samples: &Vec<f32>, state: &mut whisper_rs::WhisperState) -> String {
     let mut params = FullParams::new(SamplingStrategy::default());
     params.set_print_progress(false);
     params.set_print_special(false);
@@ -141,8 +135,16 @@ fn gen_whisper_params<'a>() -> FullParams<'a, 'a> {
     //params.set_no_speech_thold(0.3);
     //params.set_split_on_word(true);
 
+    state
+        .full(params, &*samples)
+        .expect("failed to convert samples");
 
-    params
+    let num_tokens = state.full_n_tokens(0).expect("Error");
+    let words = (1..num_tokens - 1)
+        .map(|i| state.full_get_token_text(0, i).expect("Error"))
+        .collect::<String>();
+
+    words
 }
 
 fn err_fn(err: cpal::StreamError) {

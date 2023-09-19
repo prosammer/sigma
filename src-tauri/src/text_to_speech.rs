@@ -1,17 +1,12 @@
 use std::collections::HashMap;
 use std::env;
-use std::io::Cursor;
-
 use async_openai::{
-    types::{CreateCompletionRequestArgs},
     Client,
+    types::CreateCompletionRequestArgs,
 };
 use async_openai::error::OpenAIError;
 use bytes::Bytes;
 use reqwest::Error;
-use rodio::{Decoder, OutputStream, Sink};
-
-
 
 pub async fn get_completion(transcribed_words: String) -> Result<String, OpenAIError> {
     let client = Client::new();
@@ -20,7 +15,7 @@ pub async fn get_completion(transcribed_words: String) -> Result<String, OpenAIE
     let request = match CreateCompletionRequestArgs::default()
         .model("text-davinci-003")
         .prompt(format!("You are an AI personal routine trainer, please respond to this user (they communicate via speech-to-text): {}", transcribed_words))
-        .max_tokens(40_u16)
+        .max_tokens(120_u16)
         .build() {
         Ok(req) => req,
         Err(err) => {
@@ -63,32 +58,4 @@ pub async fn text_to_speech(voice_id: &str, text: String) -> Result<Bytes, Error
     let audio_bytes = res.bytes().await?;
 
     Ok(audio_bytes)
-}
-
-pub fn play_audio(audio_bytes: Bytes) {
-    let cursor = Cursor::new(audio_bytes);
-
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    let sink = Sink::try_new(&stream_handle).unwrap();
-
-    let source = Decoder::new(cursor).unwrap();
-    sink.append(source);
-
-    sink.sleep_until_end();
-}
-
-#[cfg(test)]
-mod tests {
-    use std::fs::File;
-    use std::io::Read;
-
-    use super::*;
-
-    #[test]
-    fn test_play_audio() {
-        let mut file = File::open("test.wav").unwrap();
-        let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer).unwrap();
-        play_audio(Bytes::from(buffer));
-    }
 }

@@ -1,3 +1,9 @@
+use std::error::Error;
+use rodio::{Decoder, OutputStream, Sink};
+use bytes::Bytes;
+use std::io::Cursor;
+use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
+
 fn clamp(value: f32, min: f32, max: f32) -> f32 {
     value.min(max).max(min)
 }
@@ -86,4 +92,65 @@ pub fn convert_stereo_to_mono_audio(samples: Vec<&mut f32>) -> Result<Vec<f32>, 
         .chunks_exact(2)
         .map(|x| (*x[0] + *x[1]) / 2.0)
         .collect())
+}
+
+pub fn play_audio_bytes(audio_bytes: Bytes) {
+    let cursor = Cursor::new(audio_bytes);
+
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+
+    let source = Decoder::new(cursor).unwrap();
+    sink.append(source);
+
+    sink.sleep_until_end();
+}
+
+pub fn play_audio_f32_vec(data: Vec<f32>, sample_rate: u32) {
+    println!("Playing audio");
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    let sink = Sink::try_new(&stream_handle).unwrap();
+
+    let source = rodio::buffer::SamplesBuffer::new(1, sample_rate, data);
+    sink.append(source);
+
+    sink.sleep_until_end();
+}
+
+pub fn resample_audio(input: Vec<f32>, from_rate: usize, to_rate: usize) -> Result<Vec<f32>, Box<dyn Error>> {
+    let params = SincInterpolationParameters {
+        sinc_len: 256,
+        f_cutoff: 0.95,
+        oversampling_factor: 128,
+        interpolation: SincInterpolationType::Linear,
+        window: WindowFunction::BlackmanHarris2,
+    };
+
+    let mut resampler = SincFixedIn::<f32>::new(
+        to_rate as f64 / from_rate as f64,
+        10.0,
+        params,
+        1,
+        1,
+    ).unwrap();
+
+    let output = resampler.process(&[input], None).unwrap();
+
+    Ok(output[0].clone()) // since there is only one channel, we return the first (and only) inner vector
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+    use std::io::Read;
+    use bytes::Bytes;
+    use crate::audio_utils::play_audio_bytes;
+
+    #[test]
+    fn test_play_audio() {
+        let mut file = File::open("test.wav").unwrap();
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).unwrap();
+        play_audio_bytes(Bytes::from(buffer));
+    }
 }
