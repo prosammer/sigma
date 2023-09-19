@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod whisper_command;
+mod whisper;
 mod text_to_speech;
 mod stores;
 mod audio_utils;
@@ -10,14 +10,15 @@ use std::{env, thread, time::Duration};
 use std::sync::mpsc;
 use std::thread::sleep;
 
-use tauri::{SystemTray, CustomMenuItem, SystemTrayMenu, SystemTrayMenuItem, Manager, WindowUrl, WindowBuilder, ActivationPolicy, AppHandle};
+use tauri::{ActivationPolicy, AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayMenu, SystemTrayMenuItem, WindowBuilder, WindowUrl};
 use chrono::{Local, NaiveTime, Timelike};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_positioner::{Position, WindowExt};
 use tokio::runtime::Runtime;
-use crate::text_to_speech::{get_completion, play_audio, text_to_speech};
+use audio_utils::play_audio_bytes;
+use crate::text_to_speech::{get_completion, text_to_speech};
 use crate::stores::get_from_store;
-use crate::whisper_command::run_transcription;
+use crate::whisper::run_transcription;
 
 fn main() {
     dotenv().ok();
@@ -94,7 +95,7 @@ async fn start_voice_chat(handle: AppHandle) {
         None => "Good morning!".to_string(),
     };
     let initial_speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",initial_speech).await.expect("Unable to run TTS");
-    play_audio(initial_speech_audio);
+    play_audio_bytes(initial_speech_audio);
 
     let (transcription_tx, transcription_rx) = mpsc::channel();
     let (talking_tx, talking_rx) = mpsc::channel();
@@ -113,7 +114,7 @@ async fn start_voice_chat(handle: AppHandle) {
                     let gpt_response = get_completion(transcribed_words).await.expect("Unable to get completion");
                     println!("GPT Response: {}", gpt_response);
                     let speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",gpt_response).await.expect("Unable to run TTS");
-                    play_audio(speech_audio);
+                    play_audio_bytes(speech_audio);
                     let _send = talking_tx.send(false);
                 }
             }
