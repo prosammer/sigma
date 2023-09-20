@@ -95,7 +95,7 @@ async fn start_voice_chat(handle: AppHandle) {
         Some(s) => format!("Good morning {}!", s),
         None => "Good morning!".to_string(),
     };
-    let initial_speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",initial_speech).await.expect("Unable to run TTS");
+    let initial_speech_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE",initial_speech).await.expect("Unable to run TTS");
     play_audio_bytes(initial_speech_audio);
 
     let (transcription_tx, transcription_rx) = mpsc::channel();

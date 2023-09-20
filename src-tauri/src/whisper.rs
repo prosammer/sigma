@@ -1,12 +1,3 @@
-
-//! Feeds back the input stream directly into the output stream.
-//!
-//! Assumes that the input and output devices can use the same stream configuration and that they
-//! support the f32 sample format.
-//!
-//! Uses a delay of `LATENCY_MS` milliseconds in case the default input and output streams are not
-//! precisely synchronised.
-
 extern crate anyhow;
 extern crate cpal;
 extern crate ringbuf;
@@ -89,6 +80,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
     loop {
 
         let samples: Vec<f32> = consumer.iter().map(|x| *x).collect();
+        // TODO: Instead of removing every second sample, just set the input data fn to only push every second sample
         let samples = convert_stereo_to_mono_audio(samples).unwrap();
         let mut samples = make_audio_louder(&samples, 2.0);
 
@@ -112,6 +104,11 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
             // Else, there is just silence. The samples should be deleted
             println!("Silence Detected!");
             sleep(Duration::from_secs(1));
+        }
+
+        if consumer.len() > latency_samples / 2 {
+            println!("Clearing half of the buffer");
+            consumer.skip(latency_samples / 2);
         }
     }
 }
