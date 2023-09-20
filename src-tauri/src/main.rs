@@ -120,38 +120,30 @@ async fn start_voice_chat(handle: AppHandle) {
         runtime.block_on(async {
             loop {
                 if let Ok(user_sentence) = transcription_rx.recv() {
-                    println!("User sentence: {}", user_sentence);
+                    let mut messages = messages.lock().unwrap();
 
-                    let new_message = ChatCompletionRequestMessageArgs::default()
-                        .content(&user_sentence)
-                        .role(Role::User)
-                        .build()
-                        .unwrap();
-
-                    let mut messages_clone = messages.clone().lock().unwrap().clone();
-
-                    messages_clone.push(new_message);
-
-
-                    let gpt_response = get_completion(messages_clone).await.expect("Unable to get completion");
-
-                    println!("GPT Response: {}", gpt_response);
                     let user_message = ChatCompletionRequestMessageArgs::default()
                         .content(&user_sentence)
                         .role(Role::User)
                         .build()
                         .unwrap();
+                    messages.push(user_message);
+
+
+                    let gpt_response = get_completion(messages.clone()).await.expect("Unable to get completion");
 
                     let bot_message = ChatCompletionRequestMessageArgs::default()
                         .content(&gpt_response)
                         .role(Role::Assistant)
                         .build()
                         .unwrap();
+                    messages.push(bot_message);
 
-
-                    let mut locked_messages = messages.lock().unwrap();
-                    locked_messages.push(user_message);
-                    locked_messages.push(bot_message);
+                    for message in messages.iter() {
+                        println!("------------------");
+                        println!("{}", message.content.as_ref().unwrap());
+                        println!("------------------");
+                    }
 
 
                     let speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",gpt_response).await.expect("Unable to run TTS");

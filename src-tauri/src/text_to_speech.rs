@@ -7,10 +7,6 @@ use bytes::Bytes;
 use reqwest::Error;
 
 pub async fn get_completion(messages: Vec<ChatCompletionRequestMessage>) -> Result<String> {
-    println!("Getting completion for:");
-    for message in messages.iter() {
-        println!("{}", message.content.as_ref().unwrap());
-    }
     let client = Client::new();
 
     // TODO: Use streaming and pass each word to eleven labs
