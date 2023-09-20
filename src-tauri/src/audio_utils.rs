@@ -1,7 +1,7 @@
 use std::error::Error;
 use rodio::{Decoder, OutputStream, Sink};
 use bytes::Bytes;
-use std::io::Cursor;
+use std::io::{Cursor};
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
 
 fn clamp(value: f32, min: f32, max: f32) -> f32 {
@@ -82,16 +82,19 @@ pub(crate) fn vad_simple(
     true
 }
 
-pub fn convert_stereo_to_mono_audio(samples: Vec<&mut f32>) -> Result<Vec<f32>, &'static str> {
-    if samples.len() & 1 != 0 {
-        return Err("The stereo audio vector has an odd number of samples. \
-            This means a half-sample is missing somewhere");
+pub fn convert_stereo_to_mono_audio(samples: Vec<f32>) -> Result<Vec<f32>, &'static str> {
+    let mono_samples: Vec<f32> = samples
+        .chunks_exact(2)
+        .map(|x| (x[0] + x[1]) / 2.0)
+        .collect();
+
+    // If there's an odd number of samples, append the last sample as is.
+    if samples.len() % 2 != 0 {
+        let last_sample = samples[samples.len() - 1];
+        return Ok([mono_samples, vec![last_sample]].concat());
     }
 
-    Ok(samples
-        .chunks_exact(2)
-        .map(|x| (*x[0] + *x[1]) / 2.0)
-        .collect())
+    Ok(mono_samples)
 }
 
 pub fn play_audio_bytes(audio_bytes: Bytes) {
@@ -130,13 +133,13 @@ pub fn resample_audio(input: Vec<f32>, from_rate: usize, to_rate: usize) -> Resu
         to_rate as f64 / from_rate as f64,
         10.0,
         params,
-        1,
+        1024,
         1,
     ).unwrap();
 
     let output = resampler.process(&[input], None).unwrap();
 
-    Ok(output[0].clone()) // since there is only one channel, we return the first (and only) inner vector
+    Ok(output[0].clone()) // Return the first (and only) inner vector
 }
 
 #[cfg(test)]
