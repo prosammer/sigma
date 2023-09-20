@@ -1,39 +1,43 @@
 use std::collections::HashMap;
 use std::env;
-use async_openai::{
-    Client,
-    types::CreateCompletionRequestArgs,
-};
-use async_openai::error::OpenAIError;
+use anyhow::Result;
+use async_openai::Client;
+use async_openai::types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs};
 use bytes::Bytes;
 use reqwest::Error;
 
-pub async fn get_completion(transcribed_words: String) -> Result<String, OpenAIError> {
+pub async fn get_completion(messages: Vec<ChatCompletionRequestMessage>) -> Result<String> {
+    println!("Getting completion for:");
+    for message in messages.iter() {
+        println!("{}", message.content.as_ref().unwrap());
+    }
     let client = Client::new();
 
     // TODO: Use streaming and pass each word to eleven labs
-    let request = match CreateCompletionRequestArgs::default()
-        .model("text-davinci-003")
-        .prompt(format!("You are an AI personal routine trainer, please respond to this user (they communicate via speech-to-text): {}", transcribed_words))
+    let request = match CreateChatCompletionRequestArgs::default()
+        .model("gpt-3.5-turbo")
         .max_tokens(120_u16)
+        .messages(messages.clone())
         .build() {
         Ok(req) => req,
         Err(err) => {
             println!("Error building request: {}", err);
-            return Err(err)
+            return Err(err.into())
         }
     };
 
-    let response = match client.completions().create(request).await {
-        Ok(resp) => resp,
+    return match client.chat().create(request).await {
+        Ok(resp) => {
+            match &resp.choices[0].message.content {
+                Some(s) => Ok(s.to_string()),
+                None => Err(anyhow::Error::msg("No content in response"))
+            }
+        }
         Err(err) => {
             println!("Error making completion request: {}", err);
-            return Err(err)
+            Err(err.into())
         }
     };
-
-    let response_text = response.choices[0].text.clone();
-    return Ok(response_text);
 }
 
 
@@ -55,7 +59,14 @@ pub async fn text_to_speech(voice_id: &str, text: String) -> Result<Bytes, Error
         .send()
         .await?;
 
-    let audio_bytes = res.bytes().await?;
-
-    Ok(audio_bytes)
+    return match res.error_for_status() {
+        Ok(res) => {
+            let audio_bytes = res.bytes().await?;
+            Ok(audio_bytes)
+        },
+        Err(err) => {
+            println!("Error: {:?}", err);
+            Err(err)
+        }
+    }
 }

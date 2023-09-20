@@ -20,7 +20,7 @@ use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
 use crate::audio_utils;
-use crate::audio_utils::{convert_stereo_to_mono_audio, make_audio_louder, play_audio_f32_vec};
+use crate::audio_utils::{convert_stereo_to_mono_audio, make_audio_louder};
 
 const LATENCY_MS: f32 = 7000.0;
 
@@ -32,13 +32,10 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
     println!("Using default input device: \"{}\"", input_device.name()?);
     let config = input_device
         .default_input_config()
-        .expect("Failed to get default input config");
+        .expect("Failed to get default input config").config();
     println!("Default input config: {:?}", config);
-    //{ channels: 1, min_sample_rate: SampleRate(48000), max_sample_rate: SampleRate(48000),
-    // buffer_size: Range { min: 15, max: 4096 }, sample_format: F32 }
 
     // Top level variables
-    let config: cpal::StreamConfig = input_device.default_input_config()?.into();
     let latency_frames = (LATENCY_MS / 1_000.0) * config.sample_rate.0 as f32;
     let latency_samples = latency_frames as usize * config.channels as usize;
     println!("{}", latency_samples);
@@ -99,12 +96,12 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
 
         if audio_utils::vad_simple(&mut samples, sampling_freq as usize, 1000) {
             // the last 1000ms of audio was silent and there was talking before it
-            println!("Speech detected! Processing...");
+            println!(": Speech detected! Processing...");
             let transcript = get_transcript(&samples, &mut state);
             let _send = transcription_tx.send(transcript);
 
-            play_audio_f32_vec(samples, sampling_freq as u32);
-            println!("Waiting to receive signal");
+            // play_audio_f32_vec(samples, sampling_freq as u32);
+            println!("Whisper: Waiting to receive signal");
             input_stream.pause().expect("Failed to pause input stream");
 
             talking_rx.recv().expect("Failed to receive talking_rx signal");

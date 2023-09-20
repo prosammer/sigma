@@ -7,8 +7,9 @@ mod audio_utils;
 
 use dotenv::dotenv;
 use std::{env, thread, time::Duration};
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc, Mutex};
 use std::thread::sleep;
+use async_openai::types::{ChatCompletionRequestMessageArgs, Role};
 
 use tauri::{ActivationPolicy, AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayMenu, SystemTrayMenuItem, WindowBuilder, WindowUrl};
 use chrono::{Local, NaiveTime, Timelike};
@@ -104,15 +105,55 @@ async fn start_voice_chat(handle: AppHandle) {
         run_transcription(transcription_tx, talking_rx).unwrap();
     });
 
+    let messages = Arc::new(Mutex::new(Vec::new()));
+
+    messages.lock().unwrap().push(ChatCompletionRequestMessageArgs::default()
+        .content("You are an AI personal routine trainer, please respond to this user (they communicate via speech-to-text):")
+        .role(Role::User)
+        .build()
+        .unwrap()
+    );
+
     thread::spawn(move || {
         let runtime = Runtime::new().unwrap();
 
         runtime.block_on(async {
             loop {
-                if let Ok(transcribed_words) = transcription_rx.recv() {
-                    println!("Transcribed words: {}", transcribed_words);
-                    let gpt_response = get_completion(transcribed_words).await.expect("Unable to get completion");
+                if let Ok(user_sentence) = transcription_rx.recv() {
+                    println!("User sentence: {}", user_sentence);
+
+                    let new_message = ChatCompletionRequestMessageArgs::default()
+                        .content(&user_sentence)
+                        .role(Role::User)
+                        .build()
+                        .unwrap();
+
+                    let mut messages_clone = messages.clone().lock().unwrap().clone();
+
+                    messages_clone.push(new_message);
+
+
+                    let gpt_response = get_completion(messages_clone).await.expect("Unable to get completion");
+
                     println!("GPT Response: {}", gpt_response);
+                    let user_message = ChatCompletionRequestMessageArgs::default()
+                        .content(&user_sentence)
+                        .role(Role::User)
+                        .build()
+                        .unwrap();
+
+                    let bot_message = ChatCompletionRequestMessageArgs::default()
+                        .content(&gpt_response)
+                        .role(Role::Assistant)
+                        .build()
+                        .unwrap();
+
+
+                    let mut locked_messages = messages.lock().unwrap();
+                    locked_messages.push(user_message);
+                    locked_messages.push(bot_message);
+
+
                     let speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",gpt_response).await.expect("Unable to run TTS");
                     play_audio_bytes(speech_audio);
                     let _send = talking_tx.send(false);
