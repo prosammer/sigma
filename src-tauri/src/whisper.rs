@@ -20,25 +20,28 @@ use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
 use crate::audio_utils;
-use crate::audio_utils::{play_audio_f32_vec, resample_audio};
+use crate::audio_utils::{convert_stereo_to_mono_audio, make_audio_louder, play_audio_f32_vec};
 
 const LATENCY_MS: f32 = 7000.0;
 
 pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mpsc::Receiver<bool>) -> Result<(), anyhow::Error> {
     let host = cpal::default_host();
-
-    // Default devices.
     let input_device = host
         .default_input_device()
         .expect("failed to get default input device");
     println!("Using default input device: \"{}\"", input_device.name()?);
+    let config = input_device
+        .default_input_config()
+        .expect("Failed to get default input config");
+    println!("Default input config: {:?}", config);
+    //{ channels: 1, min_sample_rate: SampleRate(48000), max_sample_rate: SampleRate(48000),
+    // buffer_size: Range { min: 15, max: 4096 }, sample_format: F32 }
 
     // Top level variables
     let config: cpal::StreamConfig = input_device.default_input_config()?.into();
     let latency_frames = (LATENCY_MS / 1_000.0) * config.sample_rate.0 as f32;
     let latency_samples = latency_frames as usize * config.channels as usize;
     println!("{}", latency_samples);
-    let sampling_freq = config.sample_rate.0 as f32 / 2.0; // TODO: Divide by 2 because of stereo to mono
 
     // The buffer to share samples
     let ring = SharedRb::new(latency_samples * 2);
@@ -88,26 +91,23 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
 
     loop {
 
-        let mut samples: Vec<f32> = consumer.iter().map(|x| *x).collect();
-        // let samples = convert_stereo_to_mono_audio(samples).unwrap();
-        // let mut samples = make_audio_louder(samples, 1.0);
+        let samples: Vec<f32> = consumer.iter().map(|x| *x).collect();
+        let samples = convert_stereo_to_mono_audio(samples).unwrap();
+        let mut samples = make_audio_louder(&samples, 2.0);
+
+        let sampling_freq = config.sample_rate.0 as f32 / 2.0; // TODO: Divide by 2 because of stereo to mono
 
         if audio_utils::vad_simple(&mut samples, sampling_freq as usize, 1000) {
             // the last 1000ms of audio was silent and there was talking before it
             println!("Speech detected! Processing...");
+            let transcript = get_transcript(&samples, &mut state);
+            let _send = transcription_tx.send(transcript);
 
-            //Convert the samples from 48000 to 16000 for whisper
-            // let resampled = resample_audio(samples, 48000, 16000).unwrap();
-
-            // let transcript = get_transcript(&resampled, &mut state);
-
-            // let _send = transcription_tx.send(words);
-
-            // Wait for the computer to finish talking before proceeding
-            // println!("Waiting to receive signal");
+            play_audio_f32_vec(samples, sampling_freq as u32);
+            println!("Waiting to receive signal");
             input_stream.pause().expect("Failed to pause input stream");
-            play_audio_f32_vec(samples, 48000);
-            // talking_rx.recv().expect("Failed to receive talking_rx signal");
+
+            talking_rx.recv().expect("Failed to receive talking_rx signal");
             consumer.clear();
             input_stream.play().expect("Failed to play input stream");
             println!("Received signal");
