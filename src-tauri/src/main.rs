@@ -90,7 +90,7 @@ fn main() {
 
 #[tauri::command]
 async fn start_voice_chat(handle: AppHandle) {
-    let user_first_name = get_from_store(handle,  "userFirstName");
+    let user_first_name = get_from_store(handle.clone(),  "userFirstName");
     let initial_speech = match user_first_name {
         Some(s) => format!("Good morning {}!", s),
         None => "Good morning!".to_string(),
@@ -107,12 +107,22 @@ async fn start_voice_chat(handle: AppHandle) {
 
     let messages = Arc::new(Mutex::new(Vec::new()));
 
-    messages.lock().unwrap().push(ChatCompletionRequestMessageArgs::default()
-        .content("You are an AI personal routine trainer, please respond to this user (they communicate via speech-to-text):")
-        .role(Role::User)
+    let user_prompt = get_from_store(handle.clone(), "userPrompt").unwrap_or("".to_string());
+
+    let system_messages = [
+        ChatCompletionRequestMessageArgs::default()
+        .content("You are an AI personal routine trainer. You greet the user in the morning, then go through the user-provided morning routine checklist and ensure that the user completes each task on the list in order. Make sure to keep your tone positive, but it is vital that the user completes each task - do not allow them to 'skip' tasks. The user uses speech-to-text to communicate, so some of their messages may be incorrect - if some text seems out of place, please ignore it. If the users sentence makes no sense in the context, tell them you don't understand and ask them to repeat themselves. If you receive any text like [SILENCE] or [MUSIC] please respond with - I didn't catch that. The following message is the prompt the user provided - their morning checklist. ")
+        .role(Role::System)
         .build()
-        .unwrap()
-    );
+        .unwrap(),
+        ChatCompletionRequestMessageArgs::default()
+        .content(user_prompt)
+        .role(Role::System)
+        .build()
+        .unwrap()];
+
+    messages.lock().unwrap().extend_from_slice(&system_messages);
+
 
     thread::spawn(move || {
         let runtime = Runtime::new().unwrap();
@@ -146,7 +156,7 @@ async fn start_voice_chat(handle: AppHandle) {
                     }
 
 
-                    let speech_audio = text_to_speech("2EiwWnXFnvU5JabPnv8n",gpt_response).await.expect("Unable to run TTS");
+                    let speech_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE",gpt_response).await.expect("Unable to run TTS");
                     play_audio_bytes(speech_audio);
                     let _send = talking_tx.send(false);
                 }
