@@ -88,7 +88,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
 
         if audio_utils::vad_simple(&mut samples, sampling_freq as usize, 1000) {
             // the last 1000ms of audio was silent and there was talking before it
-            println!(": Speech detected! Processing...");
+            println!("Speech detected! Processing...");
             let transcript = get_transcript(&samples, &mut state);
             let _send = transcription_tx.send(transcript);
 
