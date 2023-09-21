@@ -92,7 +92,6 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
             let transcript = get_transcript(&samples, &mut state);
             let _send = transcription_tx.send(transcript);
 
-            // play_audio_f32_vec(samples, sampling_freq as u32);
             println!("Whisper: Waiting to receive signal");
             input_stream.pause().expect("Failed to pause input stream");
 
@@ -105,11 +104,11 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
             println!("Silence Detected!");
             sleep(Duration::from_secs(1));
         }
-
-        if consumer.len() > latency_samples / 2 {
-            println!("Clearing half of the buffer");
-            consumer.skip(latency_samples / 2);
-        }
+        // TODO: Clear some of the buffer to avoid latency issues - this doesn't work
+        // if consumer.len() > latency_samples / 2 {
+        //     println!("Clearing half of the buffer");
+        //     consumer.skip(latency_samples / 2);
+        // }
     }
 }
 
