@@ -1,12 +1,3 @@
-
-//! Feeds back the input stream directly into the output stream.
-//!
-//! Assumes that the input and output devices can use the same stream configuration and that they
-//! support the f32 sample format.
-//!
-//! Uses a delay of `LATENCY_MS` milliseconds in case the default input and output streams are not
-//! precisely synchronised.
-
 extern crate anyhow;
 extern crate cpal;
 extern crate ringbuf;
@@ -20,7 +11,7 @@ use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
 use crate::audio_utils;
-use crate::audio_utils::{convert_stereo_to_mono_audio, make_audio_louder, play_audio_f32_vec};
+use crate::audio_utils::{convert_stereo_to_mono_audio, make_audio_louder};
 
 const LATENCY_MS: f32 = 7000.0;
 
@@ -32,13 +23,10 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
     println!("Using default input device: \"{}\"", input_device.name()?);
     let config = input_device
         .default_input_config()
-        .expect("Failed to get default input config");
+        .expect("Failed to get default input config").config();
     println!("Default input config: {:?}", config);
-    //{ channels: 1, min_sample_rate: SampleRate(48000), max_sample_rate: SampleRate(48000),
-    // buffer_size: Range { min: 15, max: 4096 }, sample_format: F32 }
 
     // Top level variables
-    let config: cpal::StreamConfig = input_device.default_input_config()?.into();
     let latency_frames = (LATENCY_MS / 1_000.0) * config.sample_rate.0 as f32;
     let latency_samples = latency_frames as usize * config.channels as usize;
     println!("{}", latency_samples);
@@ -92,6 +80,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
     loop {
 
         let samples: Vec<f32> = consumer.iter().map(|x| *x).collect();
+        // TODO: Instead of removing every second sample, just set the input data fn to only push every second sample
         let samples = convert_stereo_to_mono_audio(samples).unwrap();
         let mut samples = make_audio_louder(&samples, 2.0);
 
@@ -103,8 +92,7 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
             let transcript = get_transcript(&samples, &mut state);
             let _send = transcription_tx.send(transcript);
 
-            play_audio_f32_vec(samples, sampling_freq as u32);
-            println!("Waiting to receive signal");
+            println!("Whisper: Waiting to receive signal");
             input_stream.pause().expect("Failed to pause input stream");
 
             talking_rx.recv().expect("Failed to receive talking_rx signal");
@@ -116,6 +104,11 @@ pub fn run_transcription(transcription_tx: mpsc::Sender<String>, talking_rx: mps
             println!("Silence Detected!");
             sleep(Duration::from_secs(1));
         }
+        // TODO: Clear some of the buffer to avoid latency issues - this doesn't work
+        // if consumer.len() > latency_samples / 2 {
+        //     println!("Clearing half of the buffer");
+        //     consumer.skip(latency_samples / 2);
+        // }
     }
 }
 
