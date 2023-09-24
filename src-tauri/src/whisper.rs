@@ -5,7 +5,7 @@ extern crate ringbuf;
 use std::mem::MaybeUninit;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use ringbuf::{Consumer, SharedRb};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperState};
 
 use std::sync::{Arc};
@@ -23,7 +23,7 @@ use tauri::async_runtime::{Sender, Receiver};
 use tokio::sync::Mutex;
 
 use crate::audio_utils;
-use crate::audio_utils::{convert_stereo_to_mono_audio, make_audio_louder, play_audio_bytes};
+use crate::audio_utils::{convert_stereo_to_mono_audio, make_audio_louder, play_audio_bytes, play_audio_from_wav};
 use crate::stores::get_from_store;
 use crate::text_to_speech::{get_gpt_response, text_to_speech};
 
@@ -99,6 +99,7 @@ pub async fn start_voice_chat(handle: AppHandle) {
                 if new_bot_message.role == Role::System {
                     println!("Sending quit signal");
                     should_quit_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    play_audio_from_wav(PathBuf::from("assets/audio/session_complete.wav"));
                     break;
                 }
 
@@ -115,7 +116,6 @@ pub async fn start_voice_chat(handle: AppHandle) {
     let _ = tauri::async_runtime::spawn(async move {
         loop {
             if let Some(gpt_response) = gpt_string_rx.recv().await {
-                println!("Received bot string, running TTS now");
                 let bot_message_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE", gpt_response).await.expect("Unable to run TTS");
                 play_audio_bytes(bot_message_audio);
                 resume_stream_tx.send(true).await.expect("Failed to send pause_stream message");

@@ -1,7 +1,9 @@
 use std::error::Error;
+use std::fs::File;
 use rodio::{Decoder, OutputStream, Sink};
 use bytes::Bytes;
-use std::io::{Cursor};
+use std::io::{Cursor, Read};
+use std::path::PathBuf;
 use rubato::{Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction};
 
 fn clamp(value: f32, min: f32, max: f32) -> f32 {
@@ -142,6 +144,13 @@ pub fn resample_audio(input: Vec<f32>, from_rate: usize, to_rate: usize) -> Resu
     Ok(output[0].clone()) // Return the first (and only) inner vector
 }
 
+pub fn play_audio_from_wav(path: PathBuf) {
+    let mut file = File::open(path).unwrap();
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).unwrap();
+    play_audio_bytes(Bytes::from(buffer));
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs::File;
@@ -151,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_play_audio() {
-        let mut file = File::open("test.wav").unwrap();
+        let mut file = File::open("../assets/audio/test.wav").unwrap();
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
         play_audio_bytes(Bytes::from(buffer));
