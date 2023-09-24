@@ -1,41 +1,48 @@
 use std::collections::HashMap;
 use std::env;
-use anyhow::Result;
+use anyhow::{Error, Result};
 use async_openai::Client;
-use async_openai::types::{ChatCompletionRequestMessage, CreateChatCompletionRequestArgs};
+use async_openai::types::{ChatCompletionFunctionsArgs, ChatCompletionRequestMessage, CreateChatCompletionRequestArgs, Role};
 use bytes::Bytes;
-use reqwest::Error;
+use serde_json::json;
+use crate::whisper::create_chat_completion_request_msg;
 
-pub async fn get_completion(messages: Vec<ChatCompletionRequestMessage>) -> Result<String> {
+pub async fn get_gpt_response(messages: Vec<ChatCompletionRequestMessage>) -> Result<ChatCompletionRequestMessage, Error> {
     let client = Client::new();
 
-    // TODO: Use streaming and pass each word to eleven labs
-    let request = match CreateChatCompletionRequestArgs::default()
+    let function = ChatCompletionFunctionsArgs::default()
+        .name("leave_conversation")
+        .description("The GPT AI can choose to call this function to leave the conversation whenever it appears finished, or if the user is unintelligible more than 3 times in a row.")
+        .parameters(json!({"type": "object", "properties": {}}))
+        .build()?;
+
+    let request = CreateChatCompletionRequestArgs::default()
         .model("gpt-3.5-turbo")
         .max_tokens(120_u16)
         .messages(messages.clone())
-        .build() {
-        Ok(req) => req,
-        Err(err) => {
-            println!("Error building request: {}", err);
-            return Err(err.into())
-        }
-    };
+        .functions(vec![function])
+        .build()?;
 
-    return match client.chat().create(request).await {
-        Ok(resp) => {
-            match &resp.choices[0].message.content {
-                Some(s) => Ok(s.to_string()),
-                None => Err(anyhow::Error::msg("No content in response"))
-            }
+    let resp = client.chat().create(request).await?;
+
+    let resp_message = resp.choices.get(0).unwrap().message.clone();
+
+    if let Some(function_call) = resp_message.function_call {
+        if function_call.name == "leave_conversation" {
+            return Ok(create_chat_completion_request_msg(
+                "Goodbye!".to_string(),
+                Role::System));
         }
-        Err(err) => {
-            println!("Error making completion request: {}", err);
-            Err(err.into())
-        }
-    };
+    }
+
+    let bot_string = resp_message.content.as_ref().unwrap().clone();
+
+    let new_bot_message = create_chat_completion_request_msg(
+        bot_string,
+        Role::Assistant);
+
+    return Ok(new_bot_message);
 }
-
 
 pub async fn text_to_speech(voice_id: &str, text: String) -> Result<Bytes, Error> {
     let url = format!("https://api.elevenlabs.io/v1/text-to-speech/{}/stream", voice_id);
@@ -55,14 +62,5 @@ pub async fn text_to_speech(voice_id: &str, text: String) -> Result<Bytes, Error
         .send()
         .await?;
 
-    return match res.error_for_status() {
-        Ok(res) => {
-            let audio_bytes = res.bytes().await?;
-            Ok(audio_bytes)
-        },
-        Err(err) => {
-            println!("Error: {:?}", err);
-            Err(err)
-        }
-    }
+    return Ok(res.bytes().await?);
 }
