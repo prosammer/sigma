@@ -29,13 +29,20 @@ use crate::text_to_speech::{get_gpt_response, text_to_speech};
 const LATENCY_MS: f32 = 7000.0;
 static WHISPER_CONTEXT: OnceCell<WhisperContext> = OnceCell::new();
 
-fn init_whisper_context(whisper_path: &str) {
-    let ctx = WhisperContext::new(whisper_path).expect("Failed to open model");
+async fn init_whisper_context() {
+    let whisper_path_str = "src/ggml-base.en.bin";
+    let whisper_path = Path::new(whisper_path_str);
+    if !whisper_path.exists() && !whisper_path.is_file() {
+        panic!("expected a whisper directory")
+    }
+    let ctx = WhisperContext::new(whisper_path_str).expect("Failed to open model");
     WHISPER_CONTEXT.set(ctx).expect("Failed to set WhisperContext");
 }
 
 #[tauri::command]
 pub async fn start_voice_chat(handle: AppHandle) {
+    let handle_clone = handle.clone();
+    let initial_speech_handle = tokio::spawn(async { initial_speech(handle_clone).await });
 
     let (audio_tx, mut audio_rx) = tauri::async_runtime::channel(20);
     let (user_string_tx, mut user_string_rx) = tauri::async_runtime::channel(20);
@@ -44,26 +51,22 @@ pub async fn start_voice_chat(handle: AppHandle) {
 
     let initial_messages = messages_setup(handle.clone()).await;
     let messages = Arc::new(Mutex::new(initial_messages));
+    let messages_clone = messages.clone();
 
+
+
+    init_whisper_context().await;
+    let ctx = WHISPER_CONTEXT.get().expect("WhisperContext not initialized");
+    let mut state = ctx.create_state().expect("failed to create key");
+
+    initial_speech_handle.await.unwrap();
+
+    // Start the thread that sends audio to the channel
     thread::spawn(|| {
         send_system_audio_to_channel(audio_tx, resume_stream_rx);
     });
 
-    // let handle_clone = handle.clone();
-    // initial_speech(handle_clone);
-
-    // take the audio from the channel and turn it into a user_string
-    let whisper_path_str = "src/ggml-base.en.bin";
-    let whisper_path = Path::new("src/ggml-base.en.bin");
-    if !whisper_path.exists() && !whisper_path.is_file() {
-        panic!("expected a whisper directory")
-    }
-    init_whisper_context(whisper_path_str);
-
-    let ctx = WHISPER_CONTEXT.get().expect("WhisperContext not initialized");
-    let mut state = ctx.create_state().expect("failed to create key");
-
-    let messages_clone = messages.clone();
+    // Start the thread that takes audio from the channel and sends it to STT
     let _ = tauri::async_runtime::spawn(async move {
         loop {
             if let Some(audio) = audio_rx.recv().await {
@@ -77,7 +80,7 @@ pub async fn start_voice_chat(handle: AppHandle) {
     });
 
 
-    // take the user_string and send it to GPT
+    // Start the thread that takes the STT response and sends it to GPT
     let _ = tauri::async_runtime::spawn(async move {
         loop {
             if let Some(user_string) = user_string_rx.recv().await {
@@ -93,7 +96,7 @@ pub async fn start_voice_chat(handle: AppHandle) {
         }
     });
 
-    // take the GPT response and send it to TTS
+    // Start the thread that takes the GPT response and sends it to TTS
     let _ = tauri::async_runtime::spawn(async move {
         loop {
             if let Some(gpt_response) = gpt_string_rx.recv().await {
