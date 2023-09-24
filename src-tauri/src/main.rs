@@ -7,19 +7,13 @@ mod audio_utils;
 
 use dotenv::dotenv;
 use std::{env, thread, time::Duration};
-use std::sync::{Arc, mpsc, Mutex};
 use std::thread::sleep;
-use async_openai::types::{ChatCompletionRequestMessageArgs, Role};
-
 use tauri::{ActivationPolicy, AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayMenu, SystemTrayMenuItem, WindowBuilder, WindowUrl};
 use chrono::{Local, NaiveTime, Timelike};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_positioner::{Position, WindowExt};
-use tokio::runtime::Runtime;
-use audio_utils::play_audio_bytes;
-use crate::text_to_speech::{get_completion, text_to_speech};
 use crate::stores::get_from_store;
-use crate::whisper::run_transcription;
+use crate::whisper::start_voice_chat;
 
 fn main() {
     dotenv().ok();
@@ -86,26 +80,6 @@ fn main() {
             }
             _ => {}
         });
-}
-
-#[tauri::command]
-async fn start_voice_chat(handle: AppHandle) {
-    // TODO: Whisper should start initializing while this is running
-    initial_speech(&handle).await;
-
-    thread::spawn(move || {
-        run_transcription(handle.clone()).unwrap();
-    });
-}
-
-async fn initial_speech(handle: &AppHandle) {
-    let user_first_name = get_from_store(handle.clone(), "userFirstName");
-    let initial_speech = match user_first_name {
-        Some(s) => format!("Good morning {}!", s),
-        None => "Good morning!".to_string(),
-    };
-    let initial_speech_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE", initial_speech).await.expect("Unable to run TTS");
-    play_audio_bytes(initial_speech_audio);
 }
 
 fn start_notification_loop(handle: AppHandle) {
