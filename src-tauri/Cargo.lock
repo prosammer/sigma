@@ -97,6 +97,7 @@ dependencies = [
  "dirs 5.0.1",
  "dotenv",
  "futures",
+ "once_cell",
  "openai-func-enums",
  "reqwest",
  "ringbuf",
