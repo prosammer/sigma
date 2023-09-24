@@ -2,12 +2,11 @@ use std::collections::HashMap;
 use std::env;
 use anyhow::{Error, Result};
 use async_openai::Client;
-use async_openai::types::{ChatCompletionFunctionsArgs, ChatCompletionRequestMessage, CreateChatCompletionRequestArgs, Role};
+use async_openai::types::{ChatCompletionFunctionsArgs, ChatCompletionRequestMessage, ChatCompletionResponseStream, CreateChatCompletionRequestArgs};
 use bytes::Bytes;
 use serde_json::json;
-use crate::whisper::create_chat_completion_request_msg;
 
-pub async fn get_gpt_response(messages: Vec<ChatCompletionRequestMessage>) -> Result<ChatCompletionRequestMessage, Error> {
+pub async fn get_gpt_response(messages: Vec<ChatCompletionRequestMessage>) -> Result<ChatCompletionResponseStream, Error> {
     let client = Client::new();
 
     let function = ChatCompletionFunctionsArgs::default()
@@ -23,25 +22,9 @@ pub async fn get_gpt_response(messages: Vec<ChatCompletionRequestMessage>) -> Re
         .functions(vec![function])
         .build()?;
 
-    let resp = client.chat().create(request).await?;
+    let stream = client.chat().create_stream(request).await?;
 
-    let resp_message = resp.choices.get(0).unwrap().message.clone();
-
-    if let Some(function_call) = resp_message.function_call {
-        if function_call.name == "leave_conversation" {
-            return Ok(create_chat_completion_request_msg(
-                "Goodbye!".to_string(),
-                Role::System));
-        }
-    }
-
-    let bot_string = resp_message.content.as_ref().unwrap().clone();
-
-    let new_bot_message = create_chat_completion_request_msg(
-        bot_string,
-        Role::Assistant);
-
-    return Ok(new_bot_message);
+    return Ok(stream);
 }
 
 pub async fn text_to_speech(voice_id: &str, text: String) -> Result<Bytes, Error> {

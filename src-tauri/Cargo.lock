@@ -89,7 +89,7 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-openai",
+ "async-openai 0.14.2",
  "async-stream",
  "bytes",
  "chrono",
@@ -140,6 +140,15 @@ dependencies = [
  "concurrent-queue",
  "event-listener",
  "futures-core",
+]
+
+[[package]]
+name = "async-convert"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d416feee97712e43152cd42874de162b8f9b77295b1c85e5d92725cc8310bae"
+dependencies = [
+ "async-trait",
 ]
 
 [[package]]
@@ -203,6 +212,29 @@ version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2317b67171a0c629b455732f8319b58027bd89d7ca72e35607e81b4b3596d663"
 dependencies = [
+ "backoff",
+ "base64 0.21.2",
+ "derive_builder",
+ "futures",
+ "rand 0.8.5",
+ "reqwest",
+ "reqwest-eventsource",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "async-openai"
+version = "0.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7150fb5d9cc4eb0184af43ce75a89620dc3747d3c816e8b0ba200682d0155c05"
+dependencies = [
+ "async-convert",
  "backoff",
  "base64 0.21.2",
  "derive_builder",
@@ -2765,7 +2797,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc30820c57c47cfda89d06677ba4266afed23e70b5235261ee492f4dfb6bd1be"
 dependencies = [
- "async-openai",
+ "async-openai 0.12.2",
  "async-trait",
  "openai-func-enums-macros",
  "proc-macro2",

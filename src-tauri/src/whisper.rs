@@ -17,6 +17,7 @@ use anyhow::Error;
 use async_openai::types::{ChatCompletionRequestMessage, ChatCompletionRequestMessageArgs, Role};
 use cpal::{Stream, StreamConfig};
 use futures::executor::block_on;
+use futures::StreamExt;
 use once_cell::sync::OnceCell;
 use tauri::AppHandle;
 use tauri::async_runtime::{Sender, Receiver};
@@ -38,6 +39,11 @@ async fn init_whisper_context() {
     }
     let ctx = WhisperContext::new(whisper_path_str).expect("Failed to open model");
     WHISPER_CONTEXT.set(ctx).expect("Failed to set WhisperContext");
+}
+
+struct BotResponse {
+    text: String,
+    is_finished: bool,
 }
 
 #[tauri::command]
@@ -94,18 +100,49 @@ pub async fn start_voice_chat(handle: AppHandle) {
             if let Some(user_string) = user_string_rx.recv().await {
                 let messages_clone = messages.lock().await.clone();
 
-                let new_bot_message = get_gpt_response(messages_clone).await.expect("Failed to get GPT response");
+                let mut response_stream = get_gpt_response(messages_clone).await.expect("Failed to get GPT response").peekable();
 
-                if new_bot_message.role == Role::System {
-                    println!("Sending quit signal");
-                    should_quit_clone.store(true, std::sync::atomic::Ordering::Relaxed);
-                    break;
+                let mut full_response = "".to_string();
+                let mut partial_stream = "".to_string();
+                while let Some(result) = response_stream.next().await {
+                    let response = result.expect("Failed to get GPT response");
+                    let delta = response.choices.get(0).unwrap().delta.clone();
+
+                    if let Some(fn_call) = delta.function_call {
+                        println!("Function call: {:?}", fn_call);
+                        if fn_call.name.unwrap() == "leave_conversation" {
+                            println!("Sending quit signal");
+                            should_quit_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                            break;
+                        }
+                    }
+                    let delta_content = delta.content.clone();
+
+                    if delta_content.is_none() {
+                        println!("delta_content is none");
+                        continue;
+                    }
+
+                    partial_stream = format!("{}{}", partial_stream, delta_content.unwrap());
+
+                    if partial_stream.len() > 50 {
+                        let bot_response = BotResponse {
+                            text: partial_stream.clone(),
+                            is_finished: false,
+                        };
+                        println!("is_finished: {}. Bot: `{}`", bot_response.is_finished, bot_response.text.clone());
+                        gpt_string_tx.send(bot_response).await.expect("Failed to send message to channel");
+
+                        full_response = format!("{} {}", full_response, partial_stream);
+                        partial_stream = "".to_string();
+                    }
                 }
 
-                println!("Bot: {}", new_bot_message.content.as_ref().unwrap());
-                messages.lock().await.push(new_bot_message.clone());
+                let new_bot_message =
+                    create_chat_completion_request_msg(full_response.clone(), Role::Assistant);
 
-                gpt_string_tx.send(new_bot_message.content.unwrap()).await.expect("Failed to send message to channel");
+                println!("Bot: {}", new_bot_message.content.as_ref().unwrap());
+                messages.lock().await.push(new_bot_message);
             }
         }
     });
@@ -115,10 +152,11 @@ pub async fn start_voice_chat(handle: AppHandle) {
     let _ = tauri::async_runtime::spawn(async move {
         loop {
             if let Some(gpt_response) = gpt_string_rx.recv().await {
-                println!("Received bot string, running TTS now");
-                let bot_message_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE", gpt_response).await.expect("Unable to run TTS");
+                let bot_message_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE", gpt_response.text).await.expect("Unable to run TTS");
                 play_audio_bytes(bot_message_audio);
-                resume_stream_tx.send(true).await.expect("Failed to send pause_stream message");
+                if gpt_response.is_finished {
+                    resume_stream_tx.send(true).await.expect("Failed to send pause_stream message");
+                }
             }
             if should_quit_clone.load(std::sync::atomic::Ordering::Relaxed) {
                 break;
