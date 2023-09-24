@@ -9,6 +9,7 @@ use std::path::Path;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperState};
 
 use std::sync::{Arc};
+use std::sync::atomic::AtomicBool;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
@@ -47,7 +48,8 @@ pub async fn start_voice_chat(handle: AppHandle) {
     let (audio_tx, mut audio_rx) = tauri::async_runtime::channel(20);
     let (user_string_tx, mut user_string_rx) = tauri::async_runtime::channel(20);
     let (gpt_string_tx, mut gpt_string_rx) = tauri::async_runtime::channel(20);
-    let (resume_stream_tx, resume_stream_rx) = tauri::async_runtime::channel(2);
+    let (resume_stream_tx, resume_stream_rx) = tauri::async_runtime::channel(1);
+    let should_quit = Arc::new(AtomicBool::new(false));
 
     let initial_messages = messages_setup(handle.clone()).await;
     let messages = Arc::new(Mutex::new(initial_messages));
@@ -61,11 +63,13 @@ pub async fn start_voice_chat(handle: AppHandle) {
 
     initial_speech_handle.await.unwrap();
 
+    let should_quit_clone = should_quit.clone();
     // Start the thread that sends audio to the channel
     thread::spawn(|| {
-        send_system_audio_to_channel(audio_tx, resume_stream_rx);
+        send_system_audio_to_channel(audio_tx, resume_stream_rx, should_quit_clone);
     });
 
+    let should_quit_clone = should_quit.clone();
     // Start the thread that takes audio from the channel and sends it to STT
     let _ = tauri::async_runtime::spawn(async move {
         loop {
@@ -76,10 +80,14 @@ pub async fn start_voice_chat(handle: AppHandle) {
                 messages_clone.lock().await.push(new_message);
                 user_string_tx.send(text.clone()).await.expect("Failed to send text to channel");
             }
+            if should_quit_clone.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
         }
     });
 
 
+    let should_quit_clone = should_quit.clone();
     // Start the thread that takes the STT response and sends it to GPT
     let _ = tauri::async_runtime::spawn(async move {
         loop {
@@ -87,6 +95,12 @@ pub async fn start_voice_chat(handle: AppHandle) {
                 let messages_clone = messages.lock().await.clone();
 
                 let new_bot_message = get_gpt_response(messages_clone).await.expect("Failed to get GPT response");
+
+                if new_bot_message.role == Role::System {
+                    println!("Sending quit signal");
+                    should_quit_clone.store(true, std::sync::atomic::Ordering::Relaxed);
+                    break;
+                }
 
                 println!("Bot: {}", new_bot_message.content.as_ref().unwrap());
                 messages.lock().await.push(new_bot_message.clone());
@@ -96,6 +110,7 @@ pub async fn start_voice_chat(handle: AppHandle) {
         }
     });
 
+    let should_quit_clone = should_quit.clone();
     // Start the thread that takes the GPT response and sends it to TTS
     let _ = tauri::async_runtime::spawn(async move {
         loop {
@@ -105,11 +120,14 @@ pub async fn start_voice_chat(handle: AppHandle) {
                 play_audio_bytes(bot_message_audio);
                 resume_stream_tx.send(true).await.expect("Failed to send pause_stream message");
             }
+            if should_quit_clone.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
         }
     });
 }
 
-fn send_system_audio_to_channel(audio_tx: Sender<Vec<f32>>, mut resume_channel_rx: Receiver<bool>) {
+fn send_system_audio_to_channel(audio_tx: Sender<Vec<f32>>, mut resume_channel_rx: Receiver<bool>, should_quit: Arc<AtomicBool>) {
     let (config, mut consumer, input_stream) = setup_audio().expect("Failed to setup audio");
 
     // Ensure the initial speech is finished before starting the input stream
@@ -118,8 +136,7 @@ fn send_system_audio_to_channel(audio_tx: Sender<Vec<f32>>, mut resume_channel_r
     consumer.clear();
     sleep(Duration::from_millis(2000));
 
-    let recording = true;
-    while recording == true {
+    loop {
         let samples: Vec<f32> = consumer.iter().map(|x| *x).collect();
         // TODO: Instead of removing every second sample, just set the input data fn to only push every second sample
         let samples = convert_stereo_to_mono_audio(samples).unwrap();
@@ -155,6 +172,9 @@ fn send_system_audio_to_channel(audio_tx: Sender<Vec<f32>>, mut resume_channel_r
             //     consumer.skip(latency_samples / 2);
             // }
         }
+        if should_quit.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
     }
     // Update messages to be the last message on the messages_update_channel_rx
     // let session_messages = messages_update_channel_rx.latest().clone();
@@ -173,7 +193,7 @@ async fn initial_speech(handle: AppHandle) {
 }
 
 async fn messages_setup(handle: AppHandle) -> Vec<ChatCompletionRequestMessage> {
-    let system_message_content = "You are an AI personal routine trainer. You greet the user in the morning, then go through the user-provided morning routine checklist and ensure that the user completes each task on the list in order. Make sure to keep your tone positive, but it is vital that the user completes each task - do not allow them to 'skip' tasks. The user uses speech-to-text to communicate, so some of their messages may be incorrect - if some text seems out of place, please ignore it. If the users sentence makes no sense in the context, tell them you don't understand and ask them to repeat themselves. If you receive any text like [SILENCE] or [MUSIC] please respond with - I didn't catch that. The following message is the prompt the user provided - their morning checklist. Call the leave_conversation function when the user has completed their morning routine.";
+    let system_message_content = "You are an AI personal routine trainer. You greet the user in the morning, then go through the user-provided morning routine checklist and ensure that the user completes each task on the list in order. Make sure to keep your tone positive, but it is vital that the user completes each task - do not allow them to 'skip' tasks. The user uses speech-to-text to communicate, so some of their messages may be incorrect - if some text seems out of place, please ignore it. If the users sentence makes no sense in the context, tell them you don't understand and ask them to repeat themselves. If you receive any text like [SILENCE] or [MUSIC] please respond with - I didn't catch that. The following message is the prompt the user provided - their morning checklist. Call the leave_conversation function when the user has completed their morning routine, or whenever the AI would normally say goodbye";
     let system_message = create_chat_completion_request_msg(system_message_content.to_string(), Role::System);
 
     let user_prompt_content = get_from_store(handle, "userPrompt").unwrap_or("".to_string());
