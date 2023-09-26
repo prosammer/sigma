@@ -1,48 +1,23 @@
 use std::collections::HashMap;
 use std::env;
 use anyhow::{Error, Result};
-use async_openai::Client;
-use async_openai::types::{ChatCompletionFunctionsArgs, ChatCompletionRequestMessage, CreateChatCompletionRequestArgs, Role};
 use bytes::Bytes;
-use serde_json::json;
-use crate::whisper::create_chat_completion_request_msg;
+use tts::*;
 
-pub async fn get_gpt_response(messages: Vec<ChatCompletionRequestMessage>) -> Result<ChatCompletionRequestMessage, Error> {
-    let client = Client::new();
-
-    let function = ChatCompletionFunctionsArgs::default()
-        .name("leave_conversation")
-        .description("The GPT AI can choose to call this function to leave the conversation whenever it appears finished, or if the user is unintelligible more than 3 times in a row.")
-        .parameters(json!({"type": "object", "properties": {}}))
-        .build()?;
-
-    let request = CreateChatCompletionRequestArgs::default()
-        .model("gpt-3.5-turbo")
-        .max_tokens(120_u16)
-        .messages(messages.clone())
-        .functions(vec![function])
-        .build()?;
-
-    let resp = client.chat().create(request).await?;
-
-    let resp_message = resp.choices.get(0).unwrap().message.clone();
-
-    if let Some(function_call) = resp_message.function_call {
-        if function_call.name == "leave_conversation" {
-            return Ok(create_chat_completion_request_msg(
-                "Goodbye!".to_string(),
-                Role::System));
-        }
-    }
-
-    let bot_string = resp_message.content.as_ref().unwrap().clone();
-
-    let new_bot_message = create_chat_completion_request_msg(
-        bot_string,
-        Role::Assistant);
-
-    return Ok(new_bot_message);
-}
+#[cfg(target_os = "macos")]
+use cocoa_foundation::base::id;
+#[cfg(target_os = "macos")]
+use cocoa_foundation::foundation::NSDefaultRunLoopMode;
+#[cfg(target_os = "macos")]
+use cocoa_foundation::foundation::NSRunLoop;
+#[cfg(target_os = "macos")]
+use objc::class;
+#[cfg(target_os = "macos")]
+use objc::{msg_send, sel, sel_impl};
+use std::{thread, time};
+use tts::*;
+use tauri::AppHandle;
+use crate::stores::get_from_store;
 
 pub async fn text_to_speech(voice_id: &str, text: String) -> Result<Bytes, Error> {
     let url = format!("https://api.elevenlabs.io/v1/text-to-speech/{}/stream", voice_id);
@@ -63,4 +38,33 @@ pub async fn text_to_speech(voice_id: &str, text: String) -> Result<Bytes, Error
         .await?;
 
     return Ok(res.bytes().await?);
+}
+
+pub fn speak_string(text: &str) -> Result<(), Error> {
+    let mut tts = Tts::default()?;
+    tts.speak(text, false)?;
+    #[cfg(target_os = "macos")]
+    {
+        let run_loop: id = unsafe { NSRunLoop::currentRunLoop() };
+        unsafe {
+            let date: id = msg_send![class!(NSDate), distantFuture];
+            let _: () = msg_send![run_loop, runMode:NSDefaultRunLoopMode beforeDate:date];
+        }
+    }
+    let time = time::Duration::from_secs(5);
+    thread::sleep(time);
+    Ok(())
+}
+
+pub async fn initial_speech(handle: AppHandle) {
+    println!("Starting initial_speech");
+    let user_first_name = get_from_store(handle, "userFirstName");
+    let initial_speech = match user_first_name {
+        Some(s) => format!("Good morning {}!", s),
+        None => "Good morning!".to_string(),
+    };
+    speak_string(&initial_speech);
+    println!("Finished initial_speech");
+    // let initial_speech_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE", initial_speech).await.expect("Unable to run TTS");
+    // play_audio_bytes(initial_speech_audio);
 }
