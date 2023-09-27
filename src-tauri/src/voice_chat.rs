@@ -6,6 +6,7 @@ use std::thread;
 use async_openai::types::Role;
 use tauri::AppHandle;
 use tokio::sync::Mutex;
+use tts::Tts;
 use crate::{text_to_speech, whisper};
 use crate::audio_utils::play_audio_from_wav;
 use crate::text_to_speech::speak_string;
@@ -14,8 +15,10 @@ use crate::whisper::WHISPER_CONTEXT;
 
 #[tauri::command]
 pub async fn start_voice_chat(handle: AppHandle) {
+    let tts = Tts::default().unwrap();
+    let tts_clone = tts.clone();
     let handle_clone = handle.clone();
-    let initial_speech_handle = tokio::spawn(async { text_to_speech::initial_speech(handle_clone).await });
+    let initial_speech_handle = tokio::spawn(async { text_to_speech::initial_speech(handle_clone, tts_clone).await });
 
     let (audio_tx, mut audio_rx) = tauri::async_runtime::channel(20);
     let (user_string_tx, mut user_string_rx) = tauri::async_runtime::channel(20);
@@ -84,11 +87,17 @@ pub async fn start_voice_chat(handle: AppHandle) {
     });
 
     let should_quit_clone = should_quit.clone();
+    let tts_clone = tts.clone();
     // Start the thread that takes the GPT response and sends it to TTS
     let _ = tauri::async_runtime::spawn(async move {
         loop {
             if let Some(gpt_response) = gpt_string_rx.recv().await {
-                speak_string(gpt_response).expect("Failed to speak string");
+                let tts_cloned = tts_clone.clone();
+                let join_handle = thread::spawn(move || {
+                    speak_string(&gpt_response, tts_cloned).expect("Failed to speak string");
+                });
+
+                join_handle.join().expect("Failed to join thread");
                 // let bot_message_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE", gpt_response).await.expect("Unable to run TTS");
                 // play_audio_bytes(bot_message_audio);
                 resume_stream_tx.send(true).await.expect("Failed to send pause_stream message");

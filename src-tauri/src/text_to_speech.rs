@@ -16,8 +16,7 @@ use tts::*;
 use tauri::AppHandle;
 use crate::stores::get_from_store;
 
-pub fn speak_string<S: AsRef<str>>(text: S) -> Result<()> {
-    let mut tts = Tts::default()?;
+pub fn speak_string(text: &str, mut tts: Tts) -> Result<()> {
     let (tx, rx) = mpsc::channel();
 
     tts.on_utterance_end(Some(Box::new(move |_| {
@@ -25,7 +24,7 @@ pub fn speak_string<S: AsRef<str>>(text: S) -> Result<()> {
     })))?;
 
     // tts.speak accepts only &str
-    tts.speak(text.as_ref(), false)?;
+    tts.speak(text, false)?;
     // TODO: Try commenting this out to see if I need it - tauri might include NSRunLoop
     #[cfg(target_os = "macos")]
     {
@@ -39,13 +38,13 @@ pub fn speak_string<S: AsRef<str>>(text: S) -> Result<()> {
     Ok(())
 }
 
-pub async fn initial_speech(handle: AppHandle) {
+pub async fn initial_speech(handle: AppHandle, tts: Tts) {
     println!("Starting initial_speech");
     let user_first_name = get_from_store(handle, "userFirstName");
     let initial_speech = match user_first_name {
         Some(s) => format!("Good morning {}!", s),
         None => "Good morning!".to_string(),
     };
-    speak_string(&initial_speech);
+    speak_string(&initial_speech, tts);
     println!("Finished initial_speech");
 }
