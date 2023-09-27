@@ -77,11 +77,9 @@ pub fn send_system_audio_to_channel(audio_tx: Sender<Vec<f32>>, mut resume_chann
             // Else, there is just silence. The samples should be deleted
             println!("Silence Detected!");
             sleep(Duration::from_secs(1));
-            // TODO: Clear some of the buffer to avoid latency issues - use popiter
-            // if consumer.len() > latency_samples / 2 {
-            //     println!("Clearing half of the buffer");
-            //     consumer.skip(latency_samples / 2);
-            // }
+            // drop half of the samples
+            let half = samples.len() / 2;
+            consumer.pop_iter().take(half).for_each(drop);
         }
         if should_quit.load(std::sync::atomic::Ordering::Relaxed) {
             break;
