@@ -1,7 +1,4 @@
-use std::collections::HashMap;
-use std::env;
-use anyhow::{Error, Result};
-use bytes::Bytes;
+use anyhow::Result;
 use tts::*;
 
 #[cfg(target_os = "macos")]
@@ -14,35 +11,22 @@ use cocoa_foundation::foundation::NSRunLoop;
 use objc::class;
 #[cfg(target_os = "macos")]
 use objc::{msg_send, sel, sel_impl};
-use std::{thread, time};
+use std::sync::mpsc;
 use tts::*;
 use tauri::AppHandle;
 use crate::stores::get_from_store;
 
-pub async fn text_to_speech(voice_id: &str, text: String) -> Result<Bytes, Error> {
-    let url = format!("https://api.elevenlabs.io/v1/text-to-speech/{}/stream", voice_id);
-
-    let mut data = HashMap::new();
-    data.insert("text", text);
-
-    let api_key = env::var("ELEVEN_LABS_API_KEY").expect("ELEVEN_LABS_API_KEY must be set");
-
-
-    let client = reqwest::Client::new();
-    let res = client.post(&url)
-        .header("Accept", "audio/mpeg")
-        .header("Content-Type", "application/json")
-        .header("xi-api-key", api_key)
-        .json(&data)
-        .send()
-        .await?;
-
-    return Ok(res.bytes().await?);
-}
-
-pub fn speak_string(text: &str) -> Result<(), Error> {
+pub fn speak_string<S: AsRef<str>>(text: S) -> Result<()> {
     let mut tts = Tts::default()?;
-    tts.speak(text, false)?;
+    let (tx, rx) = mpsc::channel();
+
+    tts.on_utterance_end(Some(Box::new(move |_| {
+        tx.send(()).unwrap();
+    })))?;
+
+    // tts.speak accepts only &str
+    tts.speak(text.as_ref(), false)?;
+    // TODO: Try commenting this out to see if I need it - tauri might include NSRunLoop
     #[cfg(target_os = "macos")]
     {
         let run_loop: id = unsafe { NSRunLoop::currentRunLoop() };
@@ -51,8 +35,7 @@ pub fn speak_string(text: &str) -> Result<(), Error> {
             let _: () = msg_send![run_loop, runMode:NSDefaultRunLoopMode beforeDate:date];
         }
     }
-    let time = time::Duration::from_secs(5);
-    thread::sleep(time);
+    rx.recv().unwrap();
     Ok(())
 }
 
@@ -65,6 +48,4 @@ pub async fn initial_speech(handle: AppHandle) {
     };
     speak_string(&initial_speech);
     println!("Finished initial_speech");
-    // let initial_speech_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE", initial_speech).await.expect("Unable to run TTS");
-    // play_audio_bytes(initial_speech_audio);
 }

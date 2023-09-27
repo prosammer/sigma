@@ -87,8 +87,8 @@ pub async fn start_voice_chat(handle: AppHandle) {
     // Start the thread that takes the GPT response and sends it to TTS
     let _ = tauri::async_runtime::spawn(async move {
         loop {
-            if let Some(_gpt_response) = gpt_string_rx.recv().await {
-                speak_string("Hello World");
+            if let Some(gpt_response) = gpt_string_rx.recv().await {
+                speak_string(gpt_response).expect("Failed to speak string");
                 // let bot_message_audio = text_to_speech("pMsXgVXv3BLzUgSXRplE", gpt_response).await.expect("Unable to run TTS");
                 // play_audio_bytes(bot_message_audio);
                 resume_stream_tx.send(true).await.expect("Failed to send pause_stream message");
@@ -98,5 +98,8 @@ pub async fn start_voice_chat(handle: AppHandle) {
             }
         }
     });
+
+    // save the messages to
+
 }
 
