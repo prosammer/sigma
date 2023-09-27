@@ -4,6 +4,8 @@ mod whisper;
 mod text_to_speech;
 mod stores;
 mod audio_utils;
+mod voice_chat;
+mod gpt;
 
 use dotenv::dotenv;
 use std::{env, thread, time::Duration};
@@ -13,7 +15,7 @@ use chrono::{Local, NaiveTime, Timelike};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_positioner::{Position, WindowExt};
 use crate::stores::get_from_store;
-use crate::whisper::start_voice_chat;
+use crate::voice_chat::start_voice_chat;
 
 fn main() {
     dotenv().ok();

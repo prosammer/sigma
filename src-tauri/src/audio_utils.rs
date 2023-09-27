@@ -35,7 +35,7 @@ fn high_pass_filter(data: &mut Vec<f32>, cutoff: f32, sample_rate: f32) {
     }
 }
 
-pub(crate) fn vad_simple(
+pub fn vad_simple(
     mut pcmf32: &mut Vec<f32>,
     sample_rate: usize,
     last_ms: usize
