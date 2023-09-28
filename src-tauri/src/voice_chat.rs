@@ -7,10 +7,10 @@ use async_openai::types::Role;
 use tauri::AppHandle;
 use tokio::sync::Mutex;
 use tts::Tts;
-use crate::{text_to_speech, whisper};
+use crate::{gpt, text_to_speech, whisper};
 use crate::audio_utils::play_audio_from_wav;
-use crate::text_to_speech::speak_string;
 use crate::gpt::{create_chat_completion_request_msg, get_gpt_response};
+use crate::text_to_speech::speak_string;
 use crate::whisper::WHISPER_CONTEXT;
 
 #[tauri::command]
@@ -26,7 +26,7 @@ pub async fn start_voice_chat(handle: AppHandle) {
     let (resume_stream_tx, resume_stream_rx) = tauri::async_runtime::channel(1);
     let should_quit = Arc::new(AtomicBool::new(false));
 
-    let initial_messages = whisper::messages_setup(handle.clone()).await;
+    let initial_messages = gpt::messages_setup(handle.clone()).await;
     let messages = Arc::new(Mutex::new(initial_messages));
     let messages_clone = messages.clone();
 

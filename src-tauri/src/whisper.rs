@@ -12,17 +12,13 @@ use std::sync::atomic::AtomicBool;
 use std::thread::sleep;
 use std::time::Duration;
 use anyhow::Error;
-use async_openai::types::{ChatCompletionRequestMessage, Role};
 use cpal::{Stream, StreamConfig};
 use futures::executor::block_on;
-use tauri::AppHandle;
 use tauri::async_runtime::{Receiver, Sender};
 use once_cell::sync::OnceCell;
 use std::path::Path;
 use crate::audio_utils;
 use crate::audio_utils::{convert_stereo_to_mono_audio, make_audio_louder};
-use crate::gpt::create_chat_completion_request_msg;
-use crate::stores::get_from_store;
 
 pub const LATENCY_MS: f32 = 7000.0;
 pub static WHISPER_CONTEXT: OnceCell<WhisperContext> = OnceCell::new();
@@ -88,17 +84,6 @@ pub fn send_system_audio_to_channel(audio_tx: Sender<Vec<f32>>, mut resume_chann
     // Update messages to be the last message on the messages_update_channel_rx
     // let session_messages = messages_update_channel_rx.latest().clone();
     // println!("Messages: {:?}", session_messages);
-}
-
-
-pub async fn messages_setup(handle: AppHandle) -> Vec<ChatCompletionRequestMessage> {
-    let system_message_content = "You are an AI personal routine trainer. You greet the user in the morning, then go through the user-provided morning routine checklist and ensure that the user completes each task on the list in order. Make sure to keep your tone positive, but it is vital that the user completes each task - do not allow them to 'skip' tasks. The user uses speech-to-text to communicate, so some of their messages may be incorrect - if some text seems out of place, please ignore it. If the users sentence makes no sense in the context, tell them you don't understand and ask them to repeat themselves. If you receive any text like [SILENCE] or [MUSIC] please respond with - I didn't catch that. The following message is the prompt the user provided - their morning checklist. Call the leave_conversation function when the user has completed their morning routine, or whenever the AI would normally say goodbye";
-    let system_message = create_chat_completion_request_msg(system_message_content.to_string(), Role::System);
-
-    let user_prompt_content = get_from_store(handle, "userPrompt").unwrap_or("".to_string());
-    let user_prompt_message = create_chat_completion_request_msg(user_prompt_content, Role::System);
-
-    return vec![system_message, user_prompt_message]
 }
 
 fn setup_audio() -> Result<(StreamConfig, Consumer<f32, Arc<SharedRb<f32, Vec<MaybeUninit<f32>>>>>, Stream), Error> {
